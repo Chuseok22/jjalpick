@@ -1,0 +1,21 @@
+.gradle/
+build/
+out/
+bin/
+HELP.md
+!gradle/wrapper/gradle-wrapper.jar
+
+### IDE ###
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+
+### 로컬 설정(시크릿) ###
+src/main/resources/application-dev.yml
+src/main/resources/application-prod.yml

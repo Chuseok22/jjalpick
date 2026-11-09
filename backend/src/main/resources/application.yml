@@ -1,0 +1,25 @@
+spring:
+  profiles:
+    active: dev
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        show_sql: false
+        format_sql: true
+        use_sql_comments: true
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
+
+server:
+  forward-headers-strategy: framework
+
+# 컨트롤러 메서드 로깅(@LogMonitoring) 설정. 시크릿 값도 마스킹 없이 출력한다(프로젝트 결정)
+chuseok22:
+  logging:
+    enabled: true
+    mask-sensitive: false
