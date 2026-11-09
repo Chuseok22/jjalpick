@@ -13,7 +13,9 @@
 
 ## Commands
 
-- 스캐폴딩 전이라 확정하지 않았다. 프로젝트를 만든 뒤 실제 명령으로 채운다.
+- BE: `cd backend && ./gradlew build` (일부만: `./gradlew test --tests '*ClassName'`)
+- Website·Desktop: `pnpm install --frozen-lockfile && pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm exec prettier --check .`
+- Desktop Rust: `cd desktop/src-tauri && cargo check`
 - PR 전에 변경 범위에 해당하는 검증 명령을 통과시킨다.
 
 ## Evidence

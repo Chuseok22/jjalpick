@@ -29,7 +29,12 @@
 
 ## Main commands
 
-- 스캐폴딩 전이라 확정하지 않았다. 프로젝트를 만든 뒤 실제 명령으로 채운다.
+- Backend 빌드·테스트: `cd backend && ./gradlew build`
+- Backend 일부 테스트: `cd backend && ./gradlew test --tests '*ClassName'`
+- Website·Desktop 준비: `cd <website|desktop> && pnpm install --frozen-lockfile`
+- Website·Desktop 검증: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm exec prettier --check .`
+- Desktop Rust 검사: `cd desktop/src-tauri && cargo check` (cargo가 PATH에 없으면 `$HOME/.cargo/bin`을 추가한다)
+- Tauri CLI: `cd desktop && pnpm tauri <명령>` (`tauri` 스크립트 존재와 `--version`만 확인했고 `tauri dev`·`tauri build`는 실행해 보지 못했다)
 
 ## Project-specific constraints
 
