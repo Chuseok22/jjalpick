@@ -85,6 +85,24 @@ class KoreaTimeJacksonConfigTest {
             .andExpect(status().isOk());
     }
 
+    @Test
+    void requestWithEpochValue_returns400MalformedRequestBody() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new InstantController())
+            .setControllerAdvice(new GlobalExceptionHandler())
+            .setMessageConverters(new JacksonJsonHttpMessageConverter(jsonMapper))
+            .build();
+
+        mockMvc.perform(post("/test/instant").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"at\":1762664400}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST_BODY"));
+
+        mockMvc.perform(post("/test/instant").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"at\":\"1762664400\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST_BODY"));
+    }
+
     record InstantRequest(Instant at) {
 
     }
