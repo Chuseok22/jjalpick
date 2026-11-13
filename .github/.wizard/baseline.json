@@ -1,0 +1,42 @@
+{
+  "templateVersion": "1.0.4",
+  "installedAt": "2026-11-09 17:16:09",
+  "files": {
+    "PROJECT-COMMON-AI-PR-SUMMARY.yaml": {
+      "installed": "sha256:c9fc3d4b0c4c08d4e972101d888de76ff0b2e40d92d310e86f15cac0c1f390d6",
+      "rendered": "sha256:c9fc3d4b0c4c08d4e972101d888de76ff0b2e40d92d310e86f15cac0c1f390d6"
+    },
+    "PROJECT-COMMON-ISSUE-HELPER.yaml": {
+      "installed": "sha256:7cf12220b21f696a9c1b20e8eae8c68730010c7dfa132aceff56a574645a98eb",
+      "rendered": "sha256:7cf12220b21f696a9c1b20e8eae8c68730010c7dfa132aceff56a574645a98eb"
+    },
+    "PROJECT-COMMON-README-VERSION-UPDATE.yaml": {
+      "installed": "sha256:185917396ba090bc355065c38666a7aefca1036f9589c8c538a8bdf6a734342f",
+      "rendered": "sha256:185917396ba090bc355065c38666a7aefca1036f9589c8c538a8bdf6a734342f"
+    },
+    "PROJECT-COMMON-RELEASE-PUBLISH.yaml": {
+      "installed": "sha256:963b3e0cc7e2c01ff2edcd6ee8f840fd8337f9215f61c810a4ff545767359a87",
+      "rendered": "sha256:963b3e0cc7e2c01ff2edcd6ee8f840fd8337f9215f61c810a4ff545767359a87"
+    },
+    "PROJECT-SPRING-CI.yml": {
+      "installed": "sha256:3aee64b15161c012e1a05bff4067a2e585341f63e611b90278696408c647b19c",
+      "rendered": "sha256:3aee64b15161c012e1a05bff4067a2e585341f63e611b90278696408c647b19c"
+    },
+    "PROJECT-SPRING-PR-PREVIEW.yaml": {
+      "installed": "sha256:dab6d700db78237297ccec7c1e9e1959dda7e8e66f7cf4038b94241415cd3996",
+      "rendered": "sha256:dab6d700db78237297ccec7c1e9e1959dda7e8e66f7cf4038b94241415cd3996"
+    },
+    "PROJECT-SPRING-SIMPLE-CICD.yaml": {
+      "installed": "sha256:25de13384a0730e0e96fbe64c59f63a8c80ea2b9023ef7cce676d6be5a0f700f",
+      "rendered": "sha256:25de13384a0730e0e96fbe64c59f63a8c80ea2b9023ef7cce676d6be5a0f700f"
+    },
+    "PROJECT-REACT-CI.yaml": {
+      "installed": "sha256:656c54675cb782dc8d90601ba0f18ae2e275e411b4e2d05758dce3c65f6fd4ac",
+      "rendered": "sha256:656c54675cb782dc8d90601ba0f18ae2e275e411b4e2d05758dce3c65f6fd4ac"
+    },
+    "PROJECT-REACT-CICD.yaml": {
+      "installed": "sha256:7a284eaf4369e3adba8ec7d306486a37841228c5a36801e442e1f6e1a18e11fd",
+      "rendered": "sha256:7a284eaf4369e3adba8ec7d306486a37841228c5a36801e442e1f6e1a18e11fd"
+    }
+  }
+}
