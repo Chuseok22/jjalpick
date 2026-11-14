@@ -37,11 +37,12 @@
 
 version: "0.0.1"
 version_code: 1 # app build number
-project_types: ["spring", "react"] # first entry is primary
+project_types: ["spring", "react", "node"] # first entry is primary
 language: "ko" # message language: en | ko
 project_paths: # 타입별 프로젝트 폴더 (레포 루트 기준 상대경로)
   spring: "backend" # backend/build.gradle
   react: "website" # website/package.json
+  node: "desktop" # desktop/package.json (tauri.conf.json의 version이 이 파일을 참조한다)
 metadata:
   last_updated: "2026-11-09 17:16:09"
   last_updated_by: "project-auto-wizard"

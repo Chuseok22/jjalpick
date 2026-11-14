@@ -209,6 +209,7 @@ jobs:
         run: npm install -g @github/copilot@1.0.88
 
       - name: Trunk-based version bump + changelog
+        id: bump
         if: >-
           steps.gate.outputs.proceed == 'true' &&
           steps.mode.outputs.mode == 'trunk-based' &&
@@ -246,6 +247,14 @@ jobs:
             LOG_RANGE="HEAD"
             DIFF_BASE="4b825dc642cb6eb9a060e54bf8d69288fbee4904" # git empty tree hash
           fi
+          # Does this release contain desktop/ changes? Decided here, before the version commit, so the
+          # bot's own desktop/package.json version sync is not counted. Used by "Trigger desktop build".
+          if [ -n "$(git diff --name-only "${DIFF_BASE}..HEAD" -- desktop/)" ]; then
+            echo "desktop_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "desktop_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
           git log --pretty=%s "$LOG_RANGE" > commits.txt
           # Body-footer BREAKING CHANGE: lines are appended after the subject list, one per
           # line. The script reads each line as one entry, so passing the whole body (%B)
@@ -480,6 +489,25 @@ jobs:
             echo "$(m wf_release.readme_dispatch_ok)"
           else
             echo "::notice::$(m wf_release.readme_dispatch_skip)"
+          fi
+
+      - name: Trigger desktop build
+        # Desktop installers embed the version, so they are built only after the version bump and the
+        # release exist (a push-triggered build would run in parallel and package the pre-bump version).
+        # workflow_dispatch started with GITHUB_TOKEN is allowed, so no PAT is needed. Runs only when
+        # this release is newly published and its range contains desktop/ changes.
+        if: >-
+          steps.gate.outputs.proceed == 'true' &&
+          steps.version.outputs.release_exists != 'true' &&
+          steps.bump.outputs.desktop_changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if gh workflow run PROJECT-DESKTOP-CICD.yaml --ref main -f tag="v${VERSION}"; then
+            echo "Desktop build dispatched for v${VERSION}"
+          else
+            echo "::warning::Could not dispatch PROJECT-DESKTOP-CICD. Run it manually with tag v${VERSION}."
           fi
 
       - name: Trigger deploy workflows

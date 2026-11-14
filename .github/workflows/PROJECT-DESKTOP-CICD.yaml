@@ -1,0 +1,191 @@
+# Desktop (Tauri) installer build and release upload
+# Builds the Windows (x64, NSIS .exe) and macOS (Apple Silicon, .app/.dmg) installers and attaches them to an
+# EXISTING GitHub Release, together with the updater signatures and latest.json.
+#
+# Started by PROJECT-COMMON-RELEASE-PUBLISH (workflow_dispatch) right after a new release that contains desktop/**
+# changes is published, so the installers carry the bumped version. It can also be started manually with the
+# release tag to (re)build the installers of that release.
+#
+# GitHub Secrets
+#   DESKTOP_ENV_FILE (optional)      : contents of desktop/.env (public client config only, e.g. the API base URL)
+#   TAURI_SIGNING_PRIVATE_KEY        : updater signing private key (created with `tauri signer generate`)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD : password of that key
+#   APPLE_CERTIFICATE                : Developer ID Application certificate (.p12) as base64
+#   APPLE_CERTIFICATE_PASSWORD       : password of the .p12
+#   APPLE_SIGNING_IDENTITY           : certificate identity, e.g. "Developer ID Application: Name (TEAMID)"
+#   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID : Apple ID, app-specific password and team id used for notarization
+# The Windows installer is not code-signed (beta); SmartScreen may warn on first run.
+
+name: PROJECT-DESKTOP-CICD
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and attach the installers to (e.g. v0.1.0)"
+        required: true
+        type: string
+
+# One build per release tag at a time
+concurrency:
+  group: desktop-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+# contents: write is needed to upload release assets and to edit the release notes
+permissions:
+  contents: write
+
+env:
+  PROJECT_PATH: "desktop"
+
+jobs:
+  # Validates the tag and the required secrets, and resolves the release id to upload to
+  prepare:
+    name: Resolve release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Check required secrets
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          MISSING=""
+          for NAME in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!NAME}" ] || MISSING="$MISSING $NAME"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error title=Missing GitHub Secrets::Register these secrets first:$MISSING"
+            exit 1
+          fi
+          echo "All required secrets are set."
+
+      - name: Resolve release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          # The tag comes from a dispatch input: accept only a plain version tag
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::tag must look like vX.Y.Z (got: $TAG)"; exit 1 ;;
+          esac
+          RELEASE_ID=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.id') || {
+            echo "::error::No GitHub Release found for tag ${TAG}. The release must exist before the installers are attached."
+            exit 1
+          }
+          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Release ${TAG} (id ${RELEASE_ID})"
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            platform: macos-latest
+            rust_targets: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin --bundles app,dmg"
+          - name: Windows (x64)
+            platform: windows-latest
+            rust_targets: ""
+            args: "--bundles nsis"
+
+    steps:
+      # Build exactly the commit the release tag points to (it contains the bumped version)
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Create environment file (.env)
+        shell: bash
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.DESKTOP_ENV_FILE }}
+        run: printf '%s\n' "$ENV_FILE_CONTENT" > ${{ env.PROJECT_PATH }}/.env
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ env.PROJECT_PATH }}/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ${{ env.PROJECT_PATH }}/.nvmrc
+          cache: "pnpm"
+          cache-dependency-path: ${{ env.PROJECT_PATH }}/pnpm-lock.yaml
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ env.PROJECT_PATH }}/src-tauri
+
+      - name: Install dependencies
+        shell: bash
+        working-directory: ${{ env.PROJECT_PATH }}
+        run: pnpm install --frozen-lockfile
+
+      # Builds the app (beforeBuildCommand runs pnpm build), signs and notarizes on macOS, and uploads the
+      # installers, signatures and latest.json to the existing release (releaseId). The release notes are untouched.
+      - name: Build and upload installers
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: ${{ env.PROJECT_PATH }}
+          releaseId: ${{ needs.prepare.outputs.release_id }}
+          args: ${{ matrix.args }}
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+
+  # Appends the Windows signing notice to the release notes (once)
+  finalize:
+    name: Update release notes
+    needs: [prepare, build]
+    if: ${{ needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Add Windows notice to the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          NOTICE="Windows 설치 파일은 서명되지 않아 SmartScreen 경고가 표시될 수 있습니다."
+          gh release view "$TAG" --json body --jq '.body' > body.md
+          if grep -qF "$NOTICE" body.md; then
+            echo "Notice already present."
+            exit 0
+          fi
+          { cat body.md; printf '\n\n> %s\n' "$NOTICE"; } > new_body.md
+          gh release edit "$TAG" --notes-file new_body.md
+          echo "Notice added to ${TAG}."
