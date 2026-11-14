@@ -1,13 +1,13 @@
 # project-auto-wizard:managed-workflow
-# React / Next.js CI (build verification)
-# On push/PR to the main branch, verifies with npm ci, npm test (when a test script exists) and npm run build. Caches node_modules and the build output.
+# React (Vite) CI (build verification)
+# On push/PR to the main branch, verifies the website with pnpm install --frozen-lockfile, typecheck, lint, prettier --check, test and build.
+# Node version comes from <PROJECT_PATH>/.nvmrc and the pnpm version from the packageManager field of <PROJECT_PATH>/package.json.
 #
 # GitHub Secrets
 #   ENV_FILE (optional): contents of the .env file. CI only verifies the build, so no deploy-related Secrets are needed
 #
 # Project settings (env section)
 #   PROJECT_NAME : project name
-#   NODE_VERSION : Node.js version (default: 22, a supported LTS line)
 #   ENV_FILE     : environment file name (default: .env)
 
 name: PROJECT-REACT-CI
@@ -19,17 +19,19 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+# Cancel superseded runs of the same ref
+concurrency:
+  group: website-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PROJECT_NAME: "mime-fit"
-  NODE_VERSION: "22"
   ENV_FILE: ".env"
   # Subdirectory of this project in a monorepo ('.' means always verify)
   PROJECT_PATH: "website"
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
 
 jobs:
   # Job: change detection (in a monorepo, checks whether this project's path changed)
@@ -58,7 +60,7 @@ jobs:
               - '${{ env.PROJECT_PATH == '.' && '**' || format('{0}/**', env.PROJECT_PATH) }}'
 
   build:
-    name: Build React/Next.js application
+    name: Build React application
     runs-on: ubuntu-latest
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.project == 'true' }}
@@ -71,72 +73,53 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # The secret goes through env (not inlined into the script) so special characters in it cannot break or inject into the shell
       - name: Create environment file (${{ env.ENV_FILE }})
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE || secrets.ENV }}
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
-          echo -e "${{ secrets.ENV_FILE || secrets.ENV }}" > ${{ env.ENV_FILE }}
+          printf '%s\n' "$ENV_FILE_CONTENT" > ${{ env.ENV_FILE }}
           m cicd.env_file_created file="${{ env.ENV_FILE }}"
+
+      # pnpm version is read from the packageManager field of the project's package.json (path relative to the repo root)
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ env.PROJECT_PATH }}/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: ${{ env.PROJECT_PATH }}/package-lock.json
+          node-version-file: ${{ env.PROJECT_PATH }}/.nvmrc
+          cache: "pnpm"
+          cache-dependency-path: ${{ env.PROJECT_PATH }}/pnpm-lock.yaml
 
-      - name: Cache npm dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-
-      # Skip npm ci when package-lock.json has not changed
-      - name: Cache node_modules
-        id: node-modules-cache
-        uses: actions/cache@v6
-        with:
-          path: "**/node_modules"
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-modules-
-
-      # Runs only on a cache miss (npm ci installs the exact versions from package-lock.json)
       - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.node_deps_installing
-          npm ci
+          pnpm install --frozen-lockfile
           m cibuild.node_deps_done
 
-      # Cache the Next.js build (for Next.js projects)
-      # Caches the .next/cache folder to speed up incremental builds
-      - name: Cache Next.js build
-        uses: actions/cache@v6
-        with:
-          path: ${{ env.PROJECT_PATH }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
-            ${{ runner.os }}-nextjs-
+      - name: Typecheck
+        run: pnpm typecheck
 
-      # Runs only when package.json has a test script (the npm init default "no test specified" counts as none)
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check formatting
+        run: pnpm exec prettier --check .
+
       - name: Run tests
         run: |
           [ -f "$GITHUB_WORKSPACE/.github/scripts/messages.py" ] || { echo "::error::messages.py is missing; rerun \`npx project-auto-wizard --mode full --force\`"; exit 1; }
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
-          TEST_SCRIPT=$(node -p "(require('./package.json').scripts || {}).test || ''")
-          if [ -z "$TEST_SCRIPT" ] || echo "$TEST_SCRIPT" | grep -q "no test specified"; then
-            m cibuild.node_no_test_script
-            exit 0
-          fi
-          m cibuild.node_test_run script="$TEST_SCRIPT"
-          # CI=true: run watch-mode test runners (react-scripts, etc.) only once
-          CI=true npm test
+          m cibuild.node_test_run script="pnpm test"
+          # CI=true: run watch-mode test runners only once
+          CI=true pnpm test
 
       # Even when the build fails, keep the workflow going to collect the error log
       - name: Build project
@@ -146,12 +129,12 @@ jobs:
           m() { (cd "$GITHUB_WORKSPACE" && python3 .github/scripts/messages.py get "$@"); }
           m cibuild.node_build_start
           m cibuild.node_build_project project="${{ env.PROJECT_NAME }}"
-          m cibuild.node_build_node node="${{ env.NODE_VERSION }}"
+          m cibuild.node_build_node node="$(node -v)"
           echo ""
-          
+
           # Run the build and save the log
           # On failure, exit 0 so the workflow continues (to collect the error log)
-          npm run build > build_log.txt 2>&1 || {
+          pnpm build > build_log.txt 2>&1 || {
             echo "build_failed=true" >> $GITHUB_OUTPUT
             echo "status=failed" >> $GITHUB_OUTPUT
             echo ""
@@ -227,7 +210,7 @@ jobs:
           echo ""
           m cibuild.node_result_title
           m cibuild.node_result_project project="${{ env.PROJECT_NAME }}"
-          m cibuild.node_result_node node="${{ env.NODE_VERSION }}"
+          m cibuild.node_result_node node="$(node -v)"
           # An empty status means the build step never ran (an earlier step such as the tests failed)
           if [ -z "$BUILD_STATUS" ]; then
             m cibuild.node_result_status_not_run

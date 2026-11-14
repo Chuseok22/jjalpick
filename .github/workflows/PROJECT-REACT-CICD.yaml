@@ -18,6 +18,11 @@
 
 name: PROJECT-REACT-CICD
 
+# Prevent overlapping deploys of the same container
+concurrency:
+  group: website-deploy
+  cancel-in-progress: false
+
 on:
   push:
     branches:
@@ -30,7 +35,6 @@ env:
   # Subdirectory of this project in a monorepo (--paths). Base for the build and Docker context ('.' means the repo root)
   PROJECT_PATH: "website"
   DOCKER_IMAGE_PREFIX: "front-container"
-  NODE_VERSION: "22"
   ENV_FILE_NAME: ".env"
 
   # SSH auth method: "password" (Synology, generic servers) | "key" (AWS EC2, .pem)
@@ -94,12 +98,18 @@ jobs:
           fi
           m cicd.precheck_ok
 
+      # pnpm version is read from the packageManager field of the project's package.json (path relative to the repo root)
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ env.PROJECT_PATH }}/package.json
+
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.PROJECT_PATH }}/package-lock.json
+          node-version-file: ${{ env.PROJECT_PATH }}/.nvmrc
+          cache: 'pnpm'
+          cache-dependency-path: ${{ env.PROJECT_PATH }}/pnpm-lock.yaml
 
       - name: Create environment file (${{ env.ENV_FILE_NAME }})
         run: |
@@ -110,38 +120,12 @@ jobs:
           EOF
           m cicd.env_file_created file="${{ env.ENV_FILE_NAME }}"
 
-      - name: Cache npm dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-
-      - name: Cache node_modules
-        id: node-modules-cache
-        uses: actions/cache@v6
-        with:
-          path: "**/node_modules"
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-modules-
-
       - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
-      - name: Cache Next.js build
-        uses: actions/cache@v6
-        with:
-          path: ${{ env.PROJECT_PATH }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
-            ${{ runner.os }}-nextjs-
-
-      - name: Build with npm
-        run: npm run build
+      # The Docker image only packages the built static files (website/dist)
+      - name: Build with pnpm
+        run: pnpm build
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -303,6 +287,9 @@ jobs:
               -v /etc/localtime:/etc/localtime:ro \
               --restart unless-stopped \
               ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}-${{ env.DOCKER_IMAGE_PREFIX }}:${BRANCH}
+
+            # Remove only dangling (untagged) images left by earlier deploys; a cleanup failure must not fail the deploy
+            SUDO docker image prune -f || true
 
             # Confirm the deployment
             m "${{ env.PAW_M_cicd_deploy_done }}"
