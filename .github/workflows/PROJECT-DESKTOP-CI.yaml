@@ -1,0 +1,106 @@
+# Desktop (Tauri) CI
+# On push/PR to main that changes desktop/**, verifies the desktop app:
+#   JS   : pnpm install --frozen-lockfile, typecheck, lint, prettier --check, test, build
+#   Rust : cargo fmt --check, cargo check (needs desktop/dist, so the JS build runs first)
+# Node version comes from desktop/.nvmrc and the pnpm version from the packageManager field of desktop/package.json.
+#
+# GitHub Secrets
+#   DESKTOP_ENV_FILE (optional): contents of desktop/.env (public client config only, e.g. the API base URL)
+
+name: PROJECT-DESKTOP-CI
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/PROJECT-DESKTOP-CI.yaml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/PROJECT-DESKTOP-CI.yaml"
+  workflow_dispatch:
+
+# Cancel superseded runs of the same ref
+concurrency:
+  group: desktop-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_PATH: "desktop"
+
+jobs:
+  verify:
+    name: Verify desktop
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # The secret goes through env (not inlined into the script) so special characters in it cannot break the shell
+      - name: Create environment file (.env)
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.DESKTOP_ENV_FILE }}
+        run: printf '%s\n' "$ENV_FILE_CONTENT" > ${{ env.PROJECT_PATH }}/.env
+
+      # pnpm version is read from the packageManager field of package.json (path relative to the repo root)
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ env.PROJECT_PATH }}/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ${{ env.PROJECT_PATH }}/.nvmrc
+          cache: "pnpm"
+          cache-dependency-path: ${{ env.PROJECT_PATH }}/pnpm-lock.yaml
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ env.PROJECT_PATH }}/src-tauri
+
+      - name: Install dependencies
+        working-directory: ${{ env.PROJECT_PATH }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: ${{ env.PROJECT_PATH }}
+        run: pnpm typecheck
+
+      - name: Lint
+        working-directory: ${{ env.PROJECT_PATH }}
+        run: pnpm lint
+
+      - name: Check formatting
+        working-directory: ${{ env.PROJECT_PATH }}
+        run: pnpm exec prettier --check .
+
+      - name: Run tests
+        working-directory: ${{ env.PROJECT_PATH }}
+        run: CI=true pnpm test
+
+      # Produces desktop/dist, which the Rust build embeds (frontendDist)
+      - name: Build frontend
+        working-directory: ${{ env.PROJECT_PATH }}
+        run: pnpm build
+
+      - name: Check Rust formatting
+        working-directory: ${{ env.PROJECT_PATH }}/src-tauri
+        run: cargo fmt --check
+
+      - name: Check Rust build
+        working-directory: ${{ env.PROJECT_PATH }}/src-tauri
+        run: cargo check
