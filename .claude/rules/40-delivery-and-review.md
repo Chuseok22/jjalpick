@@ -40,4 +40,7 @@
 
 ## Delivery constraints
 
-- 배포·버전 규칙은 아직 정하지 않았다. GitHub Actions 워크플로우를 만든 뒤 실제 모습에 맞춰 추가한다.
+- `main` push는 배포·릴리스를 일으킨다. 백엔드(`backend/**`)와 웹사이트(`website/**`)는 push로 바로 서버에 배포되고, 릴리스 워크플로우가 병렬로 버전을 올려 태그와 릴리스를 만든다(배포본의 버전은 한 단계 늦는다).
+- 버전의 원천은 `version.yml`이며 `backend/build.gradle`, `website/package.json`, `desktop/package.json`이 동기화된다. `tauri.conf.json`의 버전은 `desktop/package.json`을 참조한다.
+- desktop은 새 릴리스에 `desktop/**` 변경이 포함될 때만 릴리스 워크플로우가 `PROJECT-DESKTOP-CICD`를 호출해 설치 파일을 기존 릴리스에 올린다. 수동 재실행은 릴리스 태그를 입력해서 한다.
+- 배포용 시크릿은 GitHub Secrets에만 두고 값은 문서에 적지 않는다.
