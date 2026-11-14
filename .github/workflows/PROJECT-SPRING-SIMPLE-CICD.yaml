@@ -53,6 +53,11 @@ name: PROJECT-SPRING-SIMPLE-CICD
 # Trigger settings
 # CI/CD runs automatically on a push to the deploy branch.
 # The main branch can only be run manually via workflow_dispatch.
+# Prevent overlapping deploys of the same container
+concurrency:
+  group: deploy-backend-prod
+  cancel-in-progress: false
+
 on:
   push:
     branches:
@@ -106,8 +111,8 @@ env:
   # Health check settings
   HEALTHCHECK_WAIT_SECONDS: "10"  # container initialization wait (seconds)
   HEALTHCHECK_PATH: "/actuator/health"  # HTTP endpoint path (log pattern only if empty)
-  HEALTHCHECK_MAX_RETRIES: "5"  # HTTP retry count
-  HEALTHCHECK_RETRY_INTERVAL: "3"  # retry interval (seconds)
+  HEALTHCHECK_MAX_RETRIES: "34"  # HTTP retry count (waits up to ~180s in total: 10 + 33 * 5)
+  HEALTHCHECK_RETRY_INTERVAL: "5"  # retry interval (seconds)
   HEALTHCHECK_LOG_PATTERN: "Tomcat started on port"  # fallback log search pattern
 
 jobs:
@@ -349,6 +354,7 @@ jobs:
               -e TZ=Asia/Seoul \
               -e "SPRING_PROFILES_ACTIVE=${{ env.SPRING_PROFILE }}" \
               -v /etc/localtime:/etc/localtime:ro \
+              --restart unless-stopped \
               $VOLUME_MOUNT_OPTION \
               ${{ secrets.DOCKERHUB_USERNAME }}/${PROJECT_NAME}:${BRANCH}
 
@@ -422,6 +428,8 @@ jobs:
 
             if [ "$HEALTHCHECK_SUCCESS" = "true" ]; then
               m simple_hc_done name="$CONTAINER_NAME"
+              # Remove only dangling (untagged) images left by earlier deploys; a cleanup failure must not fail the deploy
+              SUDO docker image prune -f || true
             fi
 
             # Confirm the deploy finished
