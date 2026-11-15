@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PROJECT_NAME: "mime-fit"
+  PROJECT_NAME: "jjalpick"
   ENV_FILE: ".env"
   # Subdirectory of this project in a monorepo ('.' means always verify)
   PROJECT_PATH: "website"

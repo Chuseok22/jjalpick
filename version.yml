@@ -66,16 +66,16 @@ metadata:
 deploy: # 마법사가 기억하는 배포 설정 (비민감 / 직접 수정 가능)
   spring:
     JAVA_VERSION: "21"
-    PROJECT_NAME: "mime-fit"
+    PROJECT_NAME: "jjalpick"
     JAR_PATH: "build/libs/*.jar"
     PREVIEW_DOMAIN_SUFFIX: "pr.example.com"
     SSH_AUTH_METHOD: "password"
     SSH_PORT: "2022"
     DEPLOY_PORT: "8094"
     ENABLE_VOLUME_MOUNT: "true"
-    VOLUME_HOST_PATH: "/volume1/project/mime-fit/backend"
-    VOLUME_CONTAINER_PATH: "/mnt/mime-fit"
+    VOLUME_HOST_PATH: "/volume1/project/jjalpick/backend"
+    VOLUME_CONTAINER_PATH: "/mnt/jjalpick"
   react:
-    PROJECT_NAME: "mime-fit"
+    PROJECT_NAME: "jjalpick"
     SSH_AUTH_METHOD: "password"
     SSH_PORT: "2022"
