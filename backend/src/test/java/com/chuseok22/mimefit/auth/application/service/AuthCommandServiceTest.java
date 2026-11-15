@@ -93,10 +93,16 @@ class AuthCommandServiceTest {
 
         AuthTokens tokens = authCommandService.login(loginRequest(), IDENTITY);
 
-        verify(memberRepository).save(any(Member.class));
+        ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
+        verify(memberRepository).save(memberCaptor.capture());
+        Member savedMember = memberCaptor.getValue();
+        assertThat(savedMember.getFirebaseUid()).isEqualTo(IDENTITY.firebaseUid());
+        assertThat(savedMember.getEmail()).isEqualTo(IDENTITY.email());
+        assertThat(savedMember.getName()).isEqualTo(IDENTITY.name());
         ArgumentCaptor<LoginSession> captor = ArgumentCaptor.forClass(LoginSession.class);
         verify(loginSessionRepository).save(captor.capture());
         LoginSession saved = captor.getValue();
+        assertThat(saved.getMember()).isSameAs(savedMember);
         assertThat(saved.getDeviceIdentifier()).isEqualTo(DEVICE_IDENTIFIER);
         assertThat(saved.getClientType()).isEqualTo(ClientType.DESKTOP);
         assertThat(saved.getRefreshTokenHash()).isEqualTo(RefreshTokenHasher.hash("new-refresh"));
@@ -179,6 +185,20 @@ class AuthCommandServiceTest {
 
         assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN, DEVICE_IDENTIFIER));
         verify(loginSessionRepository).delete(session);
+    }
+
+    @Test
+    void refresh_currentTokenOfAnotherDevice_throwsAndKeepsTargetSession() {
+        LoginSession targetSession = LoginSession.create(member, DEVICE_IDENTIFIER, ClientType.WEBSITE, "기기",
+            RefreshTokenHasher.hash("other-token"), NOW.plus(Duration.ofDays(1)), NOW);
+        LoginSession otherDeviceSession = LoginSession.create(member, "device-2", ClientType.DESKTOP, "다른 기기",
+            RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN), NOW.plus(Duration.ofDays(1)), NOW);
+        givenValidRefreshToken(targetSession);
+        given(loginSessionRepository.findByRefreshTokenHash(RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN)))
+            .willReturn(Optional.of(otherDeviceSession));
+
+        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN, DEVICE_IDENTIFIER));
+        verify(loginSessionRepository, never()).delete(any(LoginSession.class));
     }
 
     @Test

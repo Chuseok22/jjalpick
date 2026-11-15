@@ -75,8 +75,11 @@ public class AuthCommandService {
         LoginSession session = loginSessionRepository.findByMemberAndDeviceIdentifier(member, deviceIdentifier)
             .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
         Instant now = clock.instant();
-        // 해시 불일치는 이미 교체된 토큰의 재사용으로 보고 세션을 폐기한다
-        if (!session.matches(RefreshTokenHasher.hash(refreshToken)) || session.isExpired(now)) {
+        String presentedTokenHash = RefreshTokenHasher.hash(refreshToken);
+        if (!session.matches(presentedTokenHash)) {
+            rejectMismatchedToken(session, presentedTokenHash);
+        }
+        if (session.isExpired(now)) {
             loginSessionRepository.delete(session);
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
@@ -86,6 +89,20 @@ public class AuthCommandService {
         session.rotate(RefreshTokenHasher.hash(newRefreshToken.token()), newRefreshToken.expiresAt(), now);
         return new AuthTokens(newAccessToken.token(), newAccessToken.expiresAt(), newRefreshToken.token(),
             newRefreshToken.expiresAt(), session.getClientType());
+    }
+
+    /**
+     * 다른 기기의 현재 토큰이면 대상 세션을 지우지 않고 거부한다(남의 토큰으로 이 기기 세션을 지우는 것을 막는다).
+     * 어느 세션에도 없는 토큰은 이미 교체된 토큰의 재사용으로 보고 대상 세션을 폐기한다.
+     */
+    private void rejectMismatchedToken(LoginSession targetSession, String presentedTokenHash) {
+        boolean belongsToAnotherSession = loginSessionRepository.findByRefreshTokenHash(presentedTokenHash)
+            .filter(found -> found != targetSession)
+            .isPresent();
+        if (!belongsToAnotherSession) {
+            loginSessionRepository.delete(targetSession);
+        }
+        throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
     }
 
     @Transactional
