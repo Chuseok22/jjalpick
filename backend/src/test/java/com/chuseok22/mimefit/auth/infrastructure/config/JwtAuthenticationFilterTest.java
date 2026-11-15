@@ -12,6 +12,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -60,6 +62,19 @@ class JwtAuthenticationFilterTest {
         assertThat(authentication.getPrincipal()).isEqualTo(MEMBER_ID);
         assertThat(authentication.getAuthorities()).isEmpty();
         assertThat(filterChain.getRequest()).isSameAs(request);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Bearer", "bearer", "BEARER"})
+    void doFilter_bearerSchemeCaseInsensitive_setsAuthentication(String scheme) throws Exception {
+        request.addHeader(HttpHeaders.AUTHORIZATION, scheme + " " + ACCESS_TOKEN);
+        given(tokenProvider.parseAccessToken(ACCESS_TOKEN)).willReturn(MEMBER_ID);
+
+        filter.doFilter(request, response, filterChain);
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(authentication).isNotNull();
+        assertThat(authentication.getPrincipal()).isEqualTo(MEMBER_ID);
     }
 
     @Test
