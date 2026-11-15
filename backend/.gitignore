@@ -19,3 +19,4 @@ HELP.md
 ### 로컬 설정(시크릿) ###
 src/main/resources/application-dev.yml
 src/main/resources/application-prod.yml
+src/main/resources/firebase-service-account.json
