@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "MimeFit",
+  "productName": "JjalPick",
   "version": "../package.json",
-  "identifier": "com.chuseok22.mimefit",
+  "identifier": "com.chuseok22.jjalpick",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "MimeFit",
+        "title": "짤픽",
         "width": 800,
         "height": 600,
         "resizable": true,

@@ -1,5 +1,5 @@
 function App() {
-  return <main>MimeFit</main>;
+  return <main>짤픽</main>;
 }
 
 export default App;
