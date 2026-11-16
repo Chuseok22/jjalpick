@@ -6,8 +6,6 @@ import com.chuseok22.jjalpick.auth.application.dto.request.RefreshRequest;
 import com.chuseok22.jjalpick.auth.application.dto.response.TokenResponse;
 import com.chuseok22.jjalpick.common.application.exception.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -24,17 +22,13 @@ public interface AuthControllerDocs {
         description = """
             Firebase ID 토큰(Google 로그인)을 검증해 로그인한다. 활성 회원이 없으면 가입까지 처리한다.
             로그인 세션은 기기(`deviceIdentifier`) 단위로 관리하며, 같은 기기로 다시 로그인하면 그 기기의 토큰을 교체한다.
-            `clientType`이 DESKTOP이면 본문에 `refreshToken`을 담고 쿠키는 내려 주지 않는다.
-            WEBSITE이면 본문에 `refreshToken` 필드가 없고, `Set-Cookie`로 `refreshToken` 쿠키
-            (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`)를 내려 준다.
             `accessTokenExpiresAt`은 KST 오프셋이 붙은 ISO-8601 문자열이다.""")
     @SecurityRequirements
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "로그인 성공"),
         @ApiResponse(responseCode = "400",
-            description = "`INVALID_REQUEST`: `idToken`·`deviceIdentifier`·`deviceName`이 비어 있거나 "
-                + "`clientType`이 없음(`errorMessage`에 사유). `MALFORMED_REQUEST_BODY`: 본문이 올바른 JSON이 아니거나 "
-                + "`clientType`이 DESKTOP·WEBSITE가 아님",
+            description = "`INVALID_REQUEST`: `idToken`·`deviceIdentifier`·`deviceName`이 비어 있음(`errorMessage`에 사유). "
+                + "`MALFORMED_REQUEST_BODY`: 본문이 올바른 JSON이 아님",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "401",
             description = "`INVALID_IDENTITY_TOKEN`: Firebase ID 토큰이 위조·만료되었거나 이메일이 없음",
@@ -51,44 +45,38 @@ public interface AuthControllerDocs {
     @Operation(summary = "토큰 갱신",
         description = """
             리프레시 토큰으로 새 액세스 토큰과 새 리프레시 토큰을 발급한다(회전). 이전 리프레시 토큰은 다시 쓸 수 없다.
-            리프레시 토큰은 본문 `refreshToken`(DESKTOP)을 먼저 쓰고, 없으면 `refreshToken` 쿠키(WEBSITE)를 쓴다.
             이미 교체된 리프레시 토큰을 다시 보내면 재사용으로 보고 그 기기의 로그인 세션을 삭제한다.
-            응답 형식은 로그인과 같다(WEBSITE는 본문에 `refreshToken` 없이 쿠키로 내려 준다).""")
+            응답 형식은 로그인과 같다.""")
     @SecurityRequirements
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "갱신 성공"),
         @ApiResponse(responseCode = "400",
-            description = "`INVALID_REQUEST`: `deviceIdentifier`가 비어 있음. "
+            description = "`INVALID_REQUEST`: `deviceIdentifier`·`refreshToken`이 비어 있음. "
                 + "`MALFORMED_REQUEST_BODY`: 본문이 올바른 JSON이 아님",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "401",
-            description = "`INVALID_REFRESH_TOKEN`: 리프레시 토큰이 없거나 위조·만료되었거나 액세스 토큰을 보냈거나, "
+            description = "`INVALID_REFRESH_TOKEN`: 리프레시 토큰이 위조·만료되었거나 액세스 토큰을 보냈거나, "
                 + "이미 교체된 토큰(재사용)이거나, 해당 기기의 로그인 세션이 없거나, 탈퇴한 회원의 토큰임. 다시 로그인해야 한다",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "403",
             description = "`MEMBER_SUSPENDED`: 이용이 정지된 회원",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ResponseEntity<TokenResponse> refresh(
-        @Valid RefreshRequest request,
-        @Parameter(in = ParameterIn.COOKIE, name = "refreshToken",
-            description = "WEBSITE 리프레시 토큰 쿠키. 본문 `refreshToken`이 없을 때만 쓴다") String cookieRefreshToken
-    );
+    ResponseEntity<TokenResponse> refresh(@Valid RefreshRequest request);
 
     @Operation(summary = "로그아웃(현재 기기)",
         description = """
-            리프레시 토큰(본문 `refreshToken` 또는 `refreshToken` 쿠키)으로 현재 기기의 로그인 세션을 삭제한다.
-            토큰이 없거나 알 수 없는 토큰이어도 오류 없이 204로 응답한다(멱등).
-            `refreshToken` 쿠키를 보냈으면 항상 그 쿠키를 만료시키는 `Set-Cookie`를 내려 준다.
+            본문 `refreshToken`(필수)으로 현재 기기의 로그인 세션을 삭제한다.
+            알 수 없는 토큰이어도 오류 없이 204로 응답한다(멱등).
             이미 발급된 액세스 토큰은 만료될 때까지 유효하므로 클라이언트가 직접 폐기한다.""")
     @SecurityRequirements
     @ApiResponses({
-        @ApiResponse(responseCode = "204", description = "로그아웃 완료(본문 없음)")
+        @ApiResponse(responseCode = "204", description = "로그아웃 완료(본문 없음)"),
+        @ApiResponse(responseCode = "400",
+            description = "`INVALID_REQUEST`: `refreshToken`이 비어 있음. "
+                + "`MALFORMED_REQUEST_BODY`: 본문이 없거나 올바른 JSON이 아님",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ResponseEntity<Void> logout(
-        LogoutRequest request,
-        @Parameter(in = ParameterIn.COOKIE, name = "refreshToken",
-            description = "WEBSITE 리프레시 토큰 쿠키. 본문 `refreshToken`이 없을 때만 쓴다") String cookieRefreshToken
-    );
+    ResponseEntity<Void> logout(@Valid LogoutRequest request);
 
 }

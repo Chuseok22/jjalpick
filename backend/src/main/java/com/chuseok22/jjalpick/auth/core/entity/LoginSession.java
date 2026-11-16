@@ -1,12 +1,9 @@
 package com.chuseok22.jjalpick.auth.core.entity;
 
-import com.chuseok22.jjalpick.auth.core.constant.ClientType;
 import com.chuseok22.jjalpick.common.core.entity.BaseEntity;
 import com.chuseok22.jjalpick.member.core.entity.Member;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -33,10 +30,6 @@ public class LoginSession extends BaseEntity {
     @Column(nullable = false)
     private String deviceIdentifier;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ClientType clientType;
-
     @Column(nullable = false)
     private String deviceName;
 
@@ -52,7 +45,6 @@ public class LoginSession extends BaseEntity {
     public static LoginSession create(
         Member member,
         String deviceIdentifier,
-        ClientType clientType,
         String deviceName,
         String refreshTokenHash,
         Instant expiresAt,
@@ -61,7 +53,6 @@ public class LoginSession extends BaseEntity {
         LoginSession loginSession = new LoginSession();
         loginSession.member = member;
         loginSession.deviceIdentifier = deviceIdentifier;
-        loginSession.clientType = clientType;
         loginSession.deviceName = deviceName;
         loginSession.refreshTokenHash = refreshTokenHash;
         loginSession.expiresAt = expiresAt;
@@ -81,8 +72,7 @@ public class LoginSession extends BaseEntity {
     /**
      * 같은 기기로 다시 로그인할 때 기기 정보를 덮어쓴다. {@link #rotate}와 함께 호출한다.
      */
-    public void changeDevice(ClientType clientType, String deviceName) {
-        this.clientType = clientType;
+    public void changeDevice(String deviceName) {
         this.deviceName = deviceName;
     }
 

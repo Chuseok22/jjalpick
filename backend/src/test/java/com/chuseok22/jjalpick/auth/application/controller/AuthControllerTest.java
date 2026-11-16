@@ -1,7 +1,5 @@
 package com.chuseok22.jjalpick.auth.application.controller;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -15,19 +13,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chuseok22.jjalpick.auth.application.dto.request.LoginRequest;
 import com.chuseok22.jjalpick.auth.application.service.AuthService;
 import com.chuseok22.jjalpick.auth.application.service.AuthTokens;
-import com.chuseok22.jjalpick.auth.core.constant.ClientType;
 import com.chuseok22.jjalpick.common.application.exception.GlobalExceptionHandler;
 import jakarta.servlet.http.Cookie;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class AuthControllerTest {
@@ -37,7 +31,6 @@ class AuthControllerTest {
     private static final Instant REFRESH_EXPIRES_AT = NOW.plus(Duration.ofDays(7));
     private static final String ACCESS_TOKEN = "access-token";
     private static final String REFRESH_TOKEN = "refresh-token";
-    private static final String COOKIE_REFRESH_TOKEN = "cookie-refresh-token";
 
     private AuthService authService;
     private MockMvc mockMvc;
@@ -45,28 +38,27 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         authService = mock(AuthService.class);
-        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(authService, clock))
+        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(authService))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
     }
 
-    private AuthTokens tokens(ClientType clientType) {
-        return new AuthTokens(ACCESS_TOKEN, ACCESS_EXPIRES_AT, REFRESH_TOKEN, REFRESH_EXPIRES_AT, clientType);
+    private AuthTokens tokens() {
+        return new AuthTokens(ACCESS_TOKEN, ACCESS_EXPIRES_AT, REFRESH_TOKEN, REFRESH_EXPIRES_AT);
     }
 
-    private String loginBody(String idToken, ClientType clientType) {
+    private String loginBody(String idToken) {
         return """
-            {"idToken":"%s","clientType":"%s","deviceIdentifier":"device-1","deviceName":"내 PC"}
-            """.formatted(idToken, clientType.name());
+            {"idToken":"%s","deviceIdentifier":"device-1","deviceName":"내 PC"}
+            """.formatted(idToken);
     }
 
     @Test
-    void login_desktop_returnsRefreshTokenInBodyAndNoCookie() throws Exception {
-        given(authService.login(any(LoginRequest.class))).willReturn(tokens(ClientType.DESKTOP));
+    void login_returnsRefreshTokenInBodyAndNoSetCookie() throws Exception {
+        given(authService.login(any(LoginRequest.class))).willReturn(tokens());
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(loginBody("id-token", ClientType.DESKTOP)))
+                .content(loginBody("id-token")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
             .andExpect(jsonPath("$.accessTokenExpiresAt").exists())
@@ -75,33 +67,9 @@ class AuthControllerTest {
     }
 
     @Test
-    void login_website_omitsRefreshTokenFromBodyAndSetsHttpOnlyStrictCookie() throws Exception {
-        given(authService.login(any(LoginRequest.class))).willReturn(tokens(ClientType.WEBSITE));
-
-        MvcResult result = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(loginBody("id-token", ClientType.WEBSITE)))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
-            .andExpect(jsonPath("$.refreshToken").doesNotExist())
-            .andReturn();
-
-        String body = result.getResponse().getContentAsString();
-        assertThat(body).doesNotContain("refreshToken");
-        String setCookie = result.getResponse().getHeader(HttpHeaders.SET_COOKIE);
-        assertThat(setCookie)
-            .startsWith("refreshToken=" + REFRESH_TOKEN)
-            .contains("Path=/api/auth")
-            .contains("HttpOnly")
-            .contains("Secure")
-            .contains("SameSite=Strict")
-            .contains("Max-Age=" + Duration.ofDays(7).toSeconds())
-            .doesNotContain("Domain=");
-    }
-
-    @Test
     void login_blankIdToken_returns400InvalidRequest() throws Exception {
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(loginBody(" ", ClientType.DESKTOP)))
+                .content(loginBody(" ")))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
@@ -109,44 +77,66 @@ class AuthControllerTest {
     }
 
     @Test
-    void refresh_websiteCookieOnly_usesCookieValue() throws Exception {
-        given(authService.refresh(COOKIE_REFRESH_TOKEN, "device-1")).willReturn(tokens(ClientType.WEBSITE));
+    void refresh_bodyToken_passesTokenAndDeviceToService() throws Exception {
+        given(authService.refresh("request-refresh-token", "device-1")).willReturn(tokens());
 
         mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
-                .cookie(new Cookie("refreshToken", COOKIE_REFRESH_TOKEN))
-                .content("{\"deviceIdentifier\":\"device-1\"}"))
+                .content("{\"deviceIdentifier\":\"device-1\",\"refreshToken\":\"request-refresh-token\"}"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
-            .andExpect(jsonPath("$.refreshToken").doesNotExist())
-            .andExpect(header().string(HttpHeaders.SET_COOKIE, startsWith("refreshToken=" + REFRESH_TOKEN)));
+            .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN))
+            .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
 
-        verify(authService).refresh(COOKIE_REFRESH_TOKEN, "device-1");
+        verify(authService).refresh("request-refresh-token", "device-1");
     }
 
     @Test
-    void logout_withoutAnyToken_returns204() throws Exception {
-        mockMvc.perform(post("/api/auth/logout"))
+    void refresh_cookieOnly_returns400InvalidRequestAndIgnoresCookie() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+                .cookie(new Cookie("refreshToken", "cookie-refresh-token"))
+                .content("{\"deviceIdentifier\":\"device-1\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void refresh_blankRefreshToken_returns400InvalidRequest() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"deviceIdentifier\":\"device-1\",\"refreshToken\":\" \"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void logout_validToken_returns204WithoutSetCookie() throws Exception {
+        mockMvc.perform(post("/api/auth/logout").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"refresh-token\"}"))
             .andExpect(status().isNoContent())
             .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
 
-        verify(authService).logout(null);
+        verify(authService).logout("refresh-token");
     }
 
     @Test
-    void logout_cookiePresent_returns204AndExpiresCookie() throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/logout")
-                .cookie(new Cookie("refreshToken", COOKIE_REFRESH_TOKEN)))
-            .andExpect(status().isNoContent())
-            .andReturn();
+    void logout_blankRefreshToken_returns400InvalidRequest() throws Exception {
+        mockMvc.perform(post("/api/auth/logout").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\" \"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
-        verify(authService).logout(COOKIE_REFRESH_TOKEN);
-        assertThat(result.getResponse().getHeader(HttpHeaders.SET_COOKIE))
-            .startsWith("refreshToken=;")
-            .contains("Max-Age=0")
-            .contains("Path=/api/auth")
-            .contains("HttpOnly")
-            .contains("Secure")
-            .contains("SameSite=Strict");
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void logout_missingBody_returns400MalformedRequestBody() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST_BODY"));
+
+        verifyNoInteractions(authService);
     }
 
 }

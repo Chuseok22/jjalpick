@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.chuseok22.jjalpick.auth.application.dto.request.LoginRequest;
-import com.chuseok22.jjalpick.auth.core.constant.ClientType;
 import com.chuseok22.jjalpick.auth.core.port.IdentityVerifier;
 import com.chuseok22.jjalpick.auth.core.port.VerifiedIdentity;
 import java.time.Instant;
@@ -22,9 +21,9 @@ class AuthServiceTest {
 
     @Test
     void login_verifiesIdentityThenDelegatesToCommandService() {
-        LoginRequest request = new LoginRequest("id-token", ClientType.DESKTOP, "device-1", "내 PC");
+        LoginRequest request = new LoginRequest("id-token", "device-1", "내 PC");
         VerifiedIdentity identity = new VerifiedIdentity("firebase-uid", "member@example.com", "회원");
-        AuthTokens expected = new AuthTokens("access", Instant.EPOCH, "refresh", Instant.EPOCH, ClientType.DESKTOP);
+        AuthTokens expected = new AuthTokens("access", Instant.EPOCH, "refresh", Instant.EPOCH);
         given(identityVerifier.verify("id-token")).willReturn(identity);
         given(authCommandService.login(request, identity)).willReturn(expected);
 
@@ -38,7 +37,7 @@ class AuthServiceTest {
 
     @Test
     void refresh_delegatesToCommandService() {
-        AuthTokens expected = new AuthTokens("access", Instant.EPOCH, "refresh", Instant.EPOCH, ClientType.WEBSITE);
+        AuthTokens expected = new AuthTokens("access", Instant.EPOCH, "refresh", Instant.EPOCH);
         given(authCommandService.refresh("token", "device-1")).willReturn(expected);
 
         assertThat(authService.refresh("token", "device-1")).isSameAs(expected);

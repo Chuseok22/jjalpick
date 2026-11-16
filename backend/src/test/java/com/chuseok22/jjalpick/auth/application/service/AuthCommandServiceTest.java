@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chuseok22.jjalpick.auth.application.dto.request.LoginRequest;
-import com.chuseok22.jjalpick.auth.core.constant.ClientType;
 import com.chuseok22.jjalpick.auth.core.entity.LoginSession;
 import com.chuseok22.jjalpick.auth.core.port.IssuedToken;
 import com.chuseok22.jjalpick.auth.core.port.TokenProvider;
@@ -70,11 +69,11 @@ class AuthCommandServiceTest {
     }
 
     private LoginRequest loginRequest() {
-        return new LoginRequest("id-token", ClientType.DESKTOP, DEVICE_IDENTIFIER, "내 PC");
+        return new LoginRequest("id-token", DEVICE_IDENTIFIER, "내 PC");
     }
 
     private LoginSession existingSession(Instant expiresAt) {
-        return LoginSession.create(member, DEVICE_IDENTIFIER, ClientType.WEBSITE, "옛 기기",
+        return LoginSession.create(member, DEVICE_IDENTIFIER, "옛 기기",
             RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN), expiresAt, NOW.minusSeconds(60));
     }
 
@@ -104,11 +103,9 @@ class AuthCommandServiceTest {
         LoginSession saved = captor.getValue();
         assertThat(saved.getMember()).isSameAs(savedMember);
         assertThat(saved.getDeviceIdentifier()).isEqualTo(DEVICE_IDENTIFIER);
-        assertThat(saved.getClientType()).isEqualTo(ClientType.DESKTOP);
         assertThat(saved.getRefreshTokenHash()).isEqualTo(RefreshTokenHasher.hash("new-refresh"));
         assertThat(tokens.accessToken()).isEqualTo("new-access");
         assertThat(tokens.refreshToken()).isEqualTo("new-refresh");
-        assertThat(tokens.clientType()).isEqualTo(ClientType.DESKTOP);
     }
 
     @Test
@@ -146,7 +143,6 @@ class AuthCommandServiceTest {
         verify(loginSessionRepository, never()).save(any(LoginSession.class));
         assertThat(session.getRefreshTokenHash()).isEqualTo(RefreshTokenHasher.hash("new-refresh"));
         assertThat(session.getExpiresAt()).isEqualTo(NOW.plus(Duration.ofDays(30)));
-        assertThat(session.getClientType()).isEqualTo(ClientType.DESKTOP);
         assertThat(session.getDeviceName()).isEqualTo("내 PC");
     }
 
@@ -171,7 +167,6 @@ class AuthCommandServiceTest {
         assertThat(tokens.accessToken()).isEqualTo("new-access");
         assertThat(tokens.refreshToken()).isEqualTo("new-refresh");
         assertThat(tokens.refreshTokenExpiresAt()).isEqualTo(NOW.plus(Duration.ofDays(30)));
-        assertThat(tokens.clientType()).isEqualTo(ClientType.WEBSITE);
         assertThat(session.getRefreshTokenHash()).isEqualTo(RefreshTokenHasher.hash("new-refresh"));
         assertThat(session.getLastUsedAt()).isEqualTo(NOW);
         verify(loginSessionRepository, never()).delete(any(LoginSession.class));
@@ -179,7 +174,7 @@ class AuthCommandServiceTest {
 
     @Test
     void refresh_reusedToken_deletesSessionAndThrowsInvalidRefreshToken() {
-        LoginSession session = LoginSession.create(member, DEVICE_IDENTIFIER, ClientType.WEBSITE, "기기",
+        LoginSession session = LoginSession.create(member, DEVICE_IDENTIFIER, "기기",
             RefreshTokenHasher.hash("other-token"), NOW.plus(Duration.ofDays(1)), NOW);
         givenValidRefreshToken(session);
 
@@ -189,9 +184,9 @@ class AuthCommandServiceTest {
 
     @Test
     void refresh_currentTokenOfAnotherDevice_throwsAndKeepsTargetSession() {
-        LoginSession targetSession = LoginSession.create(member, DEVICE_IDENTIFIER, ClientType.WEBSITE, "기기",
+        LoginSession targetSession = LoginSession.create(member, DEVICE_IDENTIFIER, "기기",
             RefreshTokenHasher.hash("other-token"), NOW.plus(Duration.ofDays(1)), NOW);
-        LoginSession otherDeviceSession = LoginSession.create(member, "device-2", ClientType.DESKTOP, "다른 기기",
+        LoginSession otherDeviceSession = LoginSession.create(member, "device-2", "다른 기기",
             RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN), NOW.plus(Duration.ofDays(1)), NOW);
         givenValidRefreshToken(targetSession);
         given(loginSessionRepository.findByRefreshTokenHash(RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN)))
