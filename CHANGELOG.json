@@ -1,15 +1,43 @@
 {
   "metadata": {
-    "lastUpdated": "2026-11-16T10:11:16Z",
-    "currentVersion": "0.3.0",
+    "lastUpdated": "2026-11-16T13:07:21Z",
+    "currentVersion": "0.4.0",
     "projectTypes": [
       "spring",
       "react",
       "node"
     ],
-    "totalReleases": 4
+    "totalReleases": 5
   },
   "releases": [
+    {
+      "version": "0.4.0",
+      "project_types": [
+        "spring",
+        "react",
+        "node"
+      ],
+      "date": "2026-11-16",
+      "pr_number": null,
+      "raw_summary": "### ✨ 기능\n- 관리자_계정과_admin_보안_체인_로그인_화면_추가 — /admin 보안 체인과 로그인·대시보드 화면 추가\n- 관리자_계정과_admin_보안_체인_로그인_화면_추가 — 설정 기반 초기 관리자 생성 추가\n- 관리자_계정과_admin_보안_체인_로그인_화면_추가 — admin 도메인 엔티티와 마이그레이션, Thymeleaf·WebJars 의존성 추가\n\n### 🐛 수정\n- 관리자_계정과_admin_보안_체인_로그인_화면_추가 — 로그인 성공 테스트와 CSS 유틸리티 누락을 보완",
+      "parsed_changes": {
+        "feat": {
+          "title": "✨ 기능",
+          "items": [
+            "관리자_계정과_admin_보안_체인_로그인_화면_추가 — /admin 보안 체인과 로그인·대시보드 화면 추가",
+            "관리자_계정과_admin_보안_체인_로그인_화면_추가 — 설정 기반 초기 관리자 생성 추가",
+            "관리자_계정과_admin_보안_체인_로그인_화면_추가 — admin 도메인 엔티티와 마이그레이션, Thymeleaf·WebJars 의존성 추가"
+          ]
+        },
+        "fix": {
+          "title": "🐛 수정",
+          "items": [
+            "관리자_계정과_admin_보안_체인_로그인_화면_추가 — 로그인 성공 테스트와 CSS 유틸리티 누락을 보완"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.3.0",
       "project_types": [

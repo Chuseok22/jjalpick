@@ -9,6 +9,6 @@
 ---
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## 최신 버전 : v0.3.0 (2026-11-16)
+## 최신 버전 : v0.4.0 (2026-11-16)
 
 [전체 버전 기록 보기](CHANGELOG.md)
