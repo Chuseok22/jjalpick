@@ -4,6 +4,8 @@ create table member (
     email text not null,
     name text,
     status text not null,
+    refresh_token_hash text,
+    refresh_token_expires_at timestamptz,
     created_at timestamptz not null,
     updated_at timestamptz not null,
     deleted boolean not null default false,

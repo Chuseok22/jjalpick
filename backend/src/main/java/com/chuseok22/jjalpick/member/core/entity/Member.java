@@ -9,6 +9,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -33,6 +34,13 @@ public class Member extends BaseEntity {
     @Column(nullable = false)
     private MemberStatus status;
 
+    // 회원당 하나만 보관하는 리프레시 토큰의 해시. 로그인하지 않은 상태면 null
+    @Column
+    private String refreshTokenHash;
+
+    @Column
+    private Instant refreshTokenExpiresAt;
+
     /**
      * 최초 로그인 시 활성 상태의 회원을 만든다.
      */
@@ -52,6 +60,36 @@ public class Member extends BaseEntity {
         if (status == MemberStatus.SUSPENDED) {
             throw new CustomException(ErrorCode.MEMBER_SUSPENDED);
         }
+    }
+
+    /**
+     * 리프레시 토큰을 새로 보관한다. 이전 토큰은 덮어써서 무효가 된다.
+     */
+    public void startRefreshToken(String refreshTokenHash, Instant expiresAt) {
+        this.refreshTokenHash = refreshTokenHash;
+        this.refreshTokenExpiresAt = expiresAt;
+    }
+
+    /**
+     * 보관 중인 리프레시 토큰을 지운다.
+     */
+    public void clearRefreshToken() {
+        this.refreshTokenHash = null;
+        this.refreshTokenExpiresAt = null;
+    }
+
+    /**
+     * 보관 중인 리프레시 토큰 해시와 일치하는지 확인한다.
+     */
+    public boolean matchesRefreshToken(String refreshTokenHash) {
+        return this.refreshTokenHash != null && this.refreshTokenHash.equals(refreshTokenHash);
+    }
+
+    /**
+     * 리프레시 토큰이 없거나 만료 시각에 도달했으면 true.
+     */
+    public boolean isRefreshTokenExpired(Instant now) {
+        return refreshTokenExpiresAt == null || !now.isBefore(refreshTokenExpiresAt);
     }
 
 }
