@@ -3,7 +3,7 @@
 ## High-level architecture
 
 - 모노레포. `backend/`(단일 Gradle 모듈), `desktop/`, `website/`는 서로 독립된 프로젝트이며 공유 패키지를 두지 않는다. 계약의 원천은 문서가 아니라 코드다. 다른 쪽 코드를 고치는 일은 사용자 요청 범위 안에서만 한다.
-- API 계약: 컨트롤러와 `XxxControllerDocs`가 원천이고 springdoc이 OpenAPI를 생성한다. `desktop/`과 `website/`는 그 OpenAPI에서 각자 클라이언트를 생성한다. 수작업 OpenAPI 파일을 따로 만들지 않고 생성 파일을 수동 수정하지 않는다.
+- API 계약: 컨트롤러와 `XxxControllerDocs`가 원천이고 springdoc이 OpenAPI를 생성한다. `desktop/`은 그 OpenAPI에서 클라이언트를 생성한다(`website/`는 API를 호출하지 않는다). 수작업 OpenAPI 파일을 따로 만들지 않고 생성 파일을 수동 수정하지 않는다.
 - BE 패키지: `<domain>.{core,application,infrastructure}`, 공통은 `common/{core,application,infrastructure}`. 루트 패키지명은 확정 후 정한다.
   - core: 엔티티, enum, 리포지토리 인터페이스, 외부 연동 port
   - application: 서비스, DTO(`dto/{request,response}`), 컨트롤러와 `XxxControllerDocs`
