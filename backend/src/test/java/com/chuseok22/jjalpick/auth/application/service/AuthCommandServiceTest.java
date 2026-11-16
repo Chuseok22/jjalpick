@@ -9,12 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.chuseok22.jjalpick.auth.application.dto.request.LoginRequest;
-import com.chuseok22.jjalpick.auth.core.entity.LoginSession;
 import com.chuseok22.jjalpick.auth.core.port.IssuedToken;
 import com.chuseok22.jjalpick.auth.core.port.TokenProvider;
 import com.chuseok22.jjalpick.auth.core.port.VerifiedIdentity;
-import com.chuseok22.jjalpick.auth.core.repository.LoginSessionRepository;
 import com.chuseok22.jjalpick.auth.core.support.RefreshTokenHasher;
 import com.chuseok22.jjalpick.common.core.exception.CustomException;
 import com.chuseok22.jjalpick.common.core.exception.ErrorCode;
@@ -38,12 +35,10 @@ import org.springframework.transaction.annotation.Transactional;
 class AuthCommandServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-11-15T00:00:00Z");
-    private static final String DEVICE_IDENTIFIER = "device-1";
     private static final String CURRENT_REFRESH_TOKEN = "current-refresh-token";
     private static final VerifiedIdentity IDENTITY = new VerifiedIdentity("firebase-uid", "member@example.com", "회원");
 
     private final MemberRepository memberRepository = mock(MemberRepository.class);
-    private final LoginSessionRepository loginSessionRepository = mock(LoginSessionRepository.class);
     private final TokenProvider tokenProvider = mock(TokenProvider.class);
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 
@@ -53,7 +48,7 @@ class AuthCommandServiceTest {
 
     @BeforeEach
     void setUp() {
-        authCommandService = new AuthCommandService(memberRepository, loginSessionRepository, tokenProvider, clock);
+        authCommandService = new AuthCommandService(memberRepository, tokenProvider, clock);
         memberId = UUID.randomUUID();
         member = Member.create(IDENTITY.firebaseUid(), IDENTITY.email(), IDENTITY.name());
         ReflectionTestUtils.setField(member, "id", memberId);
@@ -68,29 +63,20 @@ class AuthCommandServiceTest {
         });
     }
 
-    private LoginRequest loginRequest() {
-        return new LoginRequest("id-token", DEVICE_IDENTIFIER, "내 PC");
+    private void givenStoredRefreshToken(Instant expiresAt) {
+        member.startRefreshToken(RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN), expiresAt);
     }
 
-    private LoginSession existingSession(Instant expiresAt) {
-        return LoginSession.create(member, DEVICE_IDENTIFIER, "옛 기기",
-            RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN), expiresAt, NOW.minusSeconds(60));
-    }
-
-    private void givenValidRefreshToken(LoginSession session) {
+    private void givenParsableRefreshToken() {
         given(tokenProvider.parseRefreshToken(CURRENT_REFRESH_TOKEN)).willReturn(memberId);
         given(memberRepository.findByIdAndDeletedFalse(memberId)).willReturn(Optional.of(member));
-        given(loginSessionRepository.findByMemberAndDeviceIdentifier(member, DEVICE_IDENTIFIER))
-            .willReturn(Optional.ofNullable(session));
     }
 
     @Test
-    void login_newMember_createsMemberAndSession() {
+    void login_newMember_createsMemberAndStoresRefreshTokenHash() {
         given(memberRepository.findByFirebaseUidAndDeletedFalse("firebase-uid")).willReturn(Optional.empty());
-        given(loginSessionRepository.findByMemberAndDeviceIdentifier(any(Member.class), any()))
-            .willReturn(Optional.empty());
 
-        AuthTokens tokens = authCommandService.login(loginRequest(), IDENTITY);
+        AuthTokens tokens = authCommandService.login(IDENTITY);
 
         ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
         verify(memberRepository).save(memberCaptor.capture());
@@ -98,12 +84,8 @@ class AuthCommandServiceTest {
         assertThat(savedMember.getFirebaseUid()).isEqualTo(IDENTITY.firebaseUid());
         assertThat(savedMember.getEmail()).isEqualTo(IDENTITY.email());
         assertThat(savedMember.getName()).isEqualTo(IDENTITY.name());
-        ArgumentCaptor<LoginSession> captor = ArgumentCaptor.forClass(LoginSession.class);
-        verify(loginSessionRepository).save(captor.capture());
-        LoginSession saved = captor.getValue();
-        assertThat(saved.getMember()).isSameAs(savedMember);
-        assertThat(saved.getDeviceIdentifier()).isEqualTo(DEVICE_IDENTIFIER);
-        assertThat(saved.getRefreshTokenHash()).isEqualTo(RefreshTokenHasher.hash("new-refresh"));
+        assertThat(savedMember.matchesRefreshToken(RefreshTokenHasher.hash("new-refresh"))).isTrue();
+        assertThat(savedMember.getRefreshTokenExpiresAt()).isEqualTo(NOW.plus(Duration.ofDays(30)));
         assertThat(tokens.accessToken()).isEqualTo("new-access");
         assertThat(tokens.refreshToken()).isEqualTo("new-refresh");
     }
@@ -111,13 +93,11 @@ class AuthCommandServiceTest {
     @Test
     void login_existingMember_doesNotCreateMember() {
         given(memberRepository.findByFirebaseUidAndDeletedFalse("firebase-uid")).willReturn(Optional.of(member));
-        given(loginSessionRepository.findByMemberAndDeviceIdentifier(member, DEVICE_IDENTIFIER))
-            .willReturn(Optional.empty());
 
-        authCommandService.login(loginRequest(), IDENTITY);
+        authCommandService.login(IDENTITY);
 
         verify(memberRepository, never()).save(any(Member.class));
-        verify(loginSessionRepository).save(any(LoginSession.class));
+        assertThat(member.matchesRefreshToken(RefreshTokenHasher.hash("new-refresh"))).isTrue();
     }
 
     @Test
@@ -125,137 +105,92 @@ class AuthCommandServiceTest {
         ReflectionTestUtils.setField(member, "status", MemberStatus.SUSPENDED);
         given(memberRepository.findByFirebaseUidAndDeletedFalse("firebase-uid")).willReturn(Optional.of(member));
 
-        assertThatThrownBy(() -> authCommandService.login(loginRequest(), IDENTITY))
+        assertThatThrownBy(() -> authCommandService.login(IDENTITY))
             .isInstanceOfSatisfying(CustomException.class,
                 exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.MEMBER_SUSPENDED));
-        verifyNoInteractions(loginSessionRepository);
+        verifyNoInteractions(tokenProvider);
     }
 
     @Test
-    void login_sameDevice_rotatesExistingSession() {
-        LoginSession session = existingSession(NOW.plus(Duration.ofDays(1)));
+    void login_secondLogin_overwritesPreviousRefreshTokenHash() {
+        given(tokenProvider.issueRefreshToken(memberId))
+            .willReturn(new IssuedToken("first-refresh", NOW.plus(Duration.ofDays(30))))
+            .willReturn(new IssuedToken("second-refresh", NOW.plus(Duration.ofDays(30))));
         given(memberRepository.findByFirebaseUidAndDeletedFalse("firebase-uid")).willReturn(Optional.of(member));
-        given(loginSessionRepository.findByMemberAndDeviceIdentifier(member, DEVICE_IDENTIFIER))
-            .willReturn(Optional.of(session));
 
-        authCommandService.login(loginRequest(), IDENTITY);
+        authCommandService.login(IDENTITY);
+        authCommandService.login(IDENTITY);
 
-        verify(loginSessionRepository, never()).save(any(LoginSession.class));
-        assertThat(session.getRefreshTokenHash()).isEqualTo(RefreshTokenHasher.hash("new-refresh"));
-        assertThat(session.getExpiresAt()).isEqualTo(NOW.plus(Duration.ofDays(30)));
-        assertThat(session.getDeviceName()).isEqualTo("내 PC");
-    }
-
-    @Test
-    void login_deletesExpiredSessionsOfMember() {
-        given(memberRepository.findByFirebaseUidAndDeletedFalse("firebase-uid")).willReturn(Optional.of(member));
-        given(loginSessionRepository.findByMemberAndDeviceIdentifier(member, DEVICE_IDENTIFIER))
-            .willReturn(Optional.empty());
-
-        authCommandService.login(loginRequest(), IDENTITY);
-
-        verify(loginSessionRepository).deleteByMemberAndExpiresAtLessThanEqual(member, NOW);
+        assertThat(member.matchesRefreshToken(RefreshTokenHasher.hash("first-refresh"))).isFalse();
+        assertThat(member.matchesRefreshToken(RefreshTokenHasher.hash("second-refresh"))).isTrue();
     }
 
     @Test
     void refresh_matchingToken_rotatesAndReturnsNewTokens() {
-        LoginSession session = existingSession(NOW.plus(Duration.ofDays(1)));
-        givenValidRefreshToken(session);
+        givenStoredRefreshToken(NOW.plus(Duration.ofDays(1)));
+        givenParsableRefreshToken();
 
-        AuthTokens tokens = authCommandService.refresh(CURRENT_REFRESH_TOKEN, DEVICE_IDENTIFIER);
+        AuthTokens tokens = authCommandService.refresh(CURRENT_REFRESH_TOKEN);
 
         assertThat(tokens.accessToken()).isEqualTo("new-access");
         assertThat(tokens.refreshToken()).isEqualTo("new-refresh");
         assertThat(tokens.refreshTokenExpiresAt()).isEqualTo(NOW.plus(Duration.ofDays(30)));
-        assertThat(session.getRefreshTokenHash()).isEqualTo(RefreshTokenHasher.hash("new-refresh"));
-        assertThat(session.getLastUsedAt()).isEqualTo(NOW);
-        verify(loginSessionRepository, never()).delete(any(LoginSession.class));
+        assertThat(member.matchesRefreshToken(RefreshTokenHasher.hash("new-refresh"))).isTrue();
+        assertThat(member.matchesRefreshToken(RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN))).isFalse();
     }
 
     @Test
-    void refresh_reusedToken_deletesSessionAndThrowsInvalidRefreshToken() {
-        LoginSession session = LoginSession.create(member, DEVICE_IDENTIFIER, "기기",
-            RefreshTokenHasher.hash("other-token"), NOW.plus(Duration.ofDays(1)), NOW);
-        givenValidRefreshToken(session);
+    void refresh_reusedToken_clearsStoredTokenAndThrowsInvalidRefreshToken() {
+        member.startRefreshToken(RefreshTokenHasher.hash("other-token"), NOW.plus(Duration.ofDays(1)));
+        givenParsableRefreshToken();
 
-        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN, DEVICE_IDENTIFIER));
-        verify(loginSessionRepository).delete(session);
+        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN));
+        assertThat(member.getRefreshTokenHash()).isNull();
+        assertThat(member.getRefreshTokenExpiresAt()).isNull();
     }
 
     @Test
-    void refresh_currentTokenOfAnotherDevice_throwsAndKeepsTargetSession() {
-        LoginSession targetSession = LoginSession.create(member, DEVICE_IDENTIFIER, "기기",
-            RefreshTokenHasher.hash("other-token"), NOW.plus(Duration.ofDays(1)), NOW);
-        LoginSession otherDeviceSession = LoginSession.create(member, "device-2", "다른 기기",
-            RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN), NOW.plus(Duration.ofDays(1)), NOW);
-        givenValidRefreshToken(targetSession);
-        given(loginSessionRepository.findByRefreshTokenHash(RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN)))
-            .willReturn(Optional.of(otherDeviceSession));
+    void refresh_storedExpiryPassed_clearsStoredTokenAndThrowsInvalidRefreshToken() {
+        givenStoredRefreshToken(NOW);
+        givenParsableRefreshToken();
 
-        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN, DEVICE_IDENTIFIER));
-        verify(loginSessionRepository, never()).delete(any(LoginSession.class));
+        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN));
+        assertThat(member.getRefreshTokenHash()).isNull();
+        assertThat(member.getRefreshTokenExpiresAt()).isNull();
     }
 
     @Test
-    void refresh_expiredSession_deletesSessionAndThrowsInvalidRefreshToken() {
-        LoginSession session = existingSession(NOW);
-        givenValidRefreshToken(session);
+    void refresh_withoutStoredToken_throwsInvalidRefreshToken() {
+        givenParsableRefreshToken();
 
-        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN, DEVICE_IDENTIFIER));
-        verify(loginSessionRepository).delete(session);
+        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN));
+        assertThat(member.getRefreshTokenHash()).isNull();
     }
 
     @Test
-    void refresh_unknownDevice_throwsInvalidRefreshToken() {
-        givenValidRefreshToken(null);
+    void refresh_unknownMember_throwsInvalidRefreshToken() {
+        given(tokenProvider.parseRefreshToken(CURRENT_REFRESH_TOKEN)).willReturn(memberId);
+        given(memberRepository.findByIdAndDeletedFalse(memberId)).willReturn(Optional.empty());
 
-        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN, DEVICE_IDENTIFIER));
-        verify(loginSessionRepository, never()).delete(any(LoginSession.class));
+        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN));
     }
 
     @Test
     void refresh_suspendedMember_throwsMemberSuspended() {
         ReflectionTestUtils.setField(member, "status", MemberStatus.SUSPENDED);
-        givenValidRefreshToken(existingSession(NOW.plus(Duration.ofDays(1))));
+        givenStoredRefreshToken(NOW.plus(Duration.ofDays(1)));
+        givenParsableRefreshToken();
 
-        assertThatThrownBy(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN, DEVICE_IDENTIFIER))
+        assertThatThrownBy(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN))
             .isInstanceOfSatisfying(CustomException.class,
                 exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.MEMBER_SUSPENDED));
     }
 
     @Test
     void refresh_blankToken_throwsInvalidRefreshToken() {
-        assertInvalidRefreshToken(() -> authCommandService.refresh(" ", DEVICE_IDENTIFIER));
-        assertInvalidRefreshToken(() -> authCommandService.refresh(null, DEVICE_IDENTIFIER));
-        verifyNoInteractions(tokenProvider, memberRepository, loginSessionRepository);
-    }
-
-    @Test
-    void logout_knownToken_deletesSession() {
-        LoginSession session = existingSession(NOW.plus(Duration.ofDays(1)));
-        given(loginSessionRepository.findByRefreshTokenHash(RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN)))
-            .willReturn(Optional.of(session));
-
-        authCommandService.logout(CURRENT_REFRESH_TOKEN);
-
-        verify(loginSessionRepository).delete(session);
-    }
-
-    @Test
-    void logout_unknownToken_doesNothing() {
-        given(loginSessionRepository.findByRefreshTokenHash(any())).willReturn(Optional.empty());
-
-        authCommandService.logout("unknown-token");
-
-        verify(loginSessionRepository, never()).delete(any(LoginSession.class));
-    }
-
-    @Test
-    void logout_blankToken_doesNothing() {
-        authCommandService.logout(" ");
-        authCommandService.logout(null);
-
-        verifyNoInteractions(loginSessionRepository);
+        assertInvalidRefreshToken(() -> authCommandService.refresh(" "));
+        assertInvalidRefreshToken(() -> authCommandService.refresh(null));
+        verifyNoInteractions(tokenProvider, memberRepository);
     }
 
     @Test
@@ -269,6 +204,45 @@ class AuthCommandServiceTest {
 
         assertThat(transactional).isNotNull();
         assertThat(transactional.noRollbackFor()).contains(CustomException.class);
+    }
+
+    @Test
+    void logout_matchingToken_clearsStoredToken() {
+        givenStoredRefreshToken(NOW.plus(Duration.ofDays(1)));
+        givenParsableRefreshToken();
+
+        authCommandService.logout(CURRENT_REFRESH_TOKEN);
+
+        assertThat(member.getRefreshTokenHash()).isNull();
+        assertThat(member.getRefreshTokenExpiresAt()).isNull();
+    }
+
+    @Test
+    void logout_mismatchedToken_keepsStoredToken() {
+        member.startRefreshToken(RefreshTokenHasher.hash("other-token"), NOW.plus(Duration.ofDays(1)));
+        givenParsableRefreshToken();
+
+        authCommandService.logout(CURRENT_REFRESH_TOKEN);
+
+        assertThat(member.matchesRefreshToken(RefreshTokenHasher.hash("other-token"))).isTrue();
+    }
+
+    @Test
+    void logout_invalidToken_doesNothing() {
+        given(tokenProvider.parseRefreshToken("invalid-token"))
+            .willThrow(new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+        authCommandService.logout("invalid-token");
+
+        verifyNoInteractions(memberRepository);
+    }
+
+    @Test
+    void logout_blankToken_doesNothing() {
+        authCommandService.logout(" ");
+        authCommandService.logout(null);
+
+        verifyNoInteractions(tokenProvider, memberRepository);
     }
 
     private void assertInvalidRefreshToken(Runnable action) {

@@ -33,7 +33,7 @@ public class AuthController implements AuthControllerDocs {
     @LogMonitoring
     @PostMapping("/refresh")
     public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-        return toTokenResponse(authService.refresh(request.refreshToken(), request.deviceIdentifier()));
+        return toTokenResponse(authService.refresh(request.refreshToken()));
     }
 
     @Override
