@@ -67,7 +67,7 @@ on:
 
 env:
   # Project settings - change to your actual project name
-  PROJECT_NAME: "mime-fit"
+  PROJECT_NAME: "jjalpick"
   # Subdirectory of this project in a monorepo (--paths). Base for the build and Docker context ('.' = repo root)
   PROJECT_PATH: "backend"
   # In a monorepo (PROJECT_PATH is not '.') '-spring' is appended to image, container and domain names
@@ -95,8 +95,8 @@ env:
   # true: enable the volume mount (the directory is created if missing)
   # false: disable the volume mount (default)
   ENABLE_VOLUME_MOUNT: "true"
-  VOLUME_HOST_PATH: "/volume1/project/mime-fit/backend"
-  VOLUME_CONTAINER_PATH: "/mnt/mime-fit"
+  VOLUME_HOST_PATH: "/volume1/project/jjalpick/backend"
+  VOLUME_CONTAINER_PATH: "/mnt/jjalpick"
 
   # SSH auth method: "password" (Synology / generic servers) | "key" (AWS EC2 / .pem)
   #   password -> uses the SERVER_PASSWORD secret
