@@ -6,7 +6,7 @@
 <body>
 <div th:replace="~{admin/layout/shell :: page(~{::title}, ~{::main})}">
     <main class="admin-center-screen">
-        <div class="card bg-base-100 shadow-xl admin-login-card">
+        <div class="card bg-base-100 admin-login-card">
             <form class="card-body admin-stack" th:action="@{/admin/login}" method="post">
                 <h1 class="card-title">관리자 로그인</h1>
                 <div role="alert" class="alert alert-error" th:if="${param.error}">

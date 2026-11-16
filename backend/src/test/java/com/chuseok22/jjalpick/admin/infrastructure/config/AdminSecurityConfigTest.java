@@ -5,6 +5,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -113,15 +114,38 @@ class AdminSecurityConfigTest {
     }
 
     @Test
-    @DisplayName("관리자 정적 자산은 공개다")
+    @DisplayName("관리자 정적 자산과 WebJar는 공개이고 200으로 응답한다")
     void adminAssets_arePublic() throws Exception {
-        mockMvc.perform(get("/admin/assets/admin.css"))
-            .andExpect(result -> {
-                String location = result.getResponse().getHeader("Location");
-                if (location != null && location.contains("/admin/login")) {
-                    throw new AssertionError("정적 자산이 로그인으로 리다이렉트됨: " + location);
-                }
-            });
+        mockMvc.perform(get("/admin/assets/admin.css")).andExpect(status().isOk());
+        mockMvc.perform(get("/webjars/daisyui/dist/full.css")).andExpect(status().isOk());
+        mockMvc.perform(get("/webjars/htmx.org/dist/htmx.min.js")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("올바른 자격 증명으로 로그인하면 /admin으로 이동하고 ADMIN으로 인증된다")
+    void login_correctCredentials_redirectsToAdminAndAuthenticatesAsAdmin() throws Exception {
+        given(userDetailsService.loadUserByUsername("admin")).willReturn(
+            User.withUsername("admin").password(passwordEncoder.encode("correct-password")).roles("ADMIN").build());
+
+        mockMvc.perform(post("/admin/login").param("username", "admin").param("password", "correct-password")
+                .with(csrf()))
+            .andExpect(status().isFound())
+            .andExpect(redirectedUrl("/admin"))
+            .andExpect(authenticated().withRoles("ADMIN"));
+    }
+
+    @Test
+    @DisplayName("CSRF 없는 로그인은 403이다")
+    void login_withoutCsrf_isForbidden() throws Exception {
+        mockMvc.perform(post("/admin/login").param("username", "admin").param("password", "correct-password"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("ADMIN이 아닌 역할은 /admin에 접근할 수 없다")
+    void adminPageWithNonAdminRole_isForbidden() throws Exception {
+        mockMvc.perform(get("/admin").with(user("member").roles("USER")))
+            .andExpect(status().isForbidden());
     }
 
     @Test

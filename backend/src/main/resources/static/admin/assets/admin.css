@@ -4,6 +4,8 @@
     --admin-space-large: 2rem;
     --admin-width-card: 24rem;
     --admin-width-content: 64rem;
+    --admin-font-size-title: 1.25rem;
+    --admin-shadow-card: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
 .admin-center-screen {
@@ -17,6 +19,7 @@
 .admin-login-card {
     width: 100%;
     max-width: var(--admin-width-card);
+    box-shadow: var(--admin-shadow-card);
 }
 
 .admin-content {
@@ -35,4 +38,12 @@
     display: flex;
     flex-direction: column;
     gap: var(--admin-space-medium);
+}
+
+.admin-topbar-brand {
+    flex: 1;
+}
+
+.admin-topbar-title {
+    font-size: var(--admin-font-size-title);
 }

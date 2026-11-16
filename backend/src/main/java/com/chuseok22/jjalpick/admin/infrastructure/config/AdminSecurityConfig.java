@@ -22,6 +22,7 @@ public class AdminSecurityConfig {
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(LOGIN_PATH, "/webjars/**", "/admin/assets/**").permitAll()
                 .anyRequest().hasRole("ADMIN"))
+            .requestCache(requestCache -> requestCache.disable())
             .formLogin(form -> form
                 .loginPage(LOGIN_PATH)
                 .loginProcessingUrl(LOGIN_PATH)

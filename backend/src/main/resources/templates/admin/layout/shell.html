@@ -11,8 +11,8 @@
 <body>
 <div th:fragment="page(title, content)">
     <header class="navbar bg-base-200" th:if="${adminUsername != null}">
-        <div class="flex-1">
-            <a class="btn btn-ghost text-xl" th:href="@{/admin}">짤픽 관리자</a>
+        <div class="admin-topbar-brand">
+            <a class="btn btn-ghost admin-topbar-title" th:href="@{/admin}">짤픽 관리자</a>
         </div>
         <div class="admin-topbar-actions">
             <span th:text="${adminUsername}">admin</span>
