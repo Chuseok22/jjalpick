@@ -29,6 +29,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    // 버전 없는 /webjars/... 경로 해석용. 버전은 Boot BOM이 관리한다
+    implementation 'org.webjars:webjars-locator-lite'
+    // dist/full.css만 쓴다. 전이 의존성이 버전 범위라 제외한다
+    implementation('org.webjars.npm:daisyui:4.12.10') {
+        transitive = false
+    }
+    implementation 'org.webjars.npm:htmx.org:2.0.4'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
     implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
