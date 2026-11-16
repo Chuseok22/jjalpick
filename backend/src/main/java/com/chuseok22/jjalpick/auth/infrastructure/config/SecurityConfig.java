@@ -5,6 +5,7 @@ import com.chuseok22.jjalpick.member.core.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -12,7 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * 전체 요청에 적용하는 보안 필터 체인 하나를 둔다. 관리자 체인은 이후 이슈에서 순서를 정해 분리한다.
+ * 관리자 체인(/admin/**)이 먼저 처리하고 남은 모든 요청에 적용하는 API 보안 필터 체인.
  */
 @Configuration
 @RequiredArgsConstructor
@@ -25,6 +26,7 @@ public class SecurityConfig {
 
     // 필터는 빈으로 만들지 않고 체인에만 넣어 서블릿 컨테이너에 이중 등록되지 않게 한다
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
