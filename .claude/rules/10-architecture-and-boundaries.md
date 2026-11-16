@@ -23,11 +23,11 @@
 
 - 요청: 컨트롤러는 서비스만 호출하고 리포지토리를 직접 호출하지 않는다. 응답은 `ResponseEntity<Dto>`이며 envelope를 두지 않는다.
 - 인증은 경로별로 보안 필터 체인을 나눈다.
-  - `/api/**`: JWT(Bearer), stateless. Desktop과 Website가 같은 방식을 쓴다. 로그인은 Google만 지원한다.
+  - `/api/**`: JWT(Bearer), stateless. 사용자 기능은 Desktop만 쓰며 Website는 로그인·계정 없이 API를 호출하지 않는다. 로그인은 Google만 지원한다.
   - `/admin/**`: Thymeleaf 세션 + CSRF + `ROLE_ADMIN`. 사용자 JWT 체인과 분리한다.
   - 결제 웹훅(도입 시): 서명 검증 전용 체인.
-- 토큰 보관: 액세스 토큰은 메모리에만 둔다. 리프레시 토큰은 Website에서는 HttpOnly Secure 쿠키(리프레시 경로 한정), Desktop에서는 OS 보안 저장소에 둔다. `localStorage` 등 JS가 읽을 수 있는 저장소에 토큰을 두지 않는다. 리프레시는 회전하고 DB에는 해시만 저장한다.
-- CORS는 Website 출처만 허용한다. 컨트롤러 인증 주체는 `@AuthenticationPrincipal`로 받는다.
+- 토큰 보관: 액세스 토큰은 메모리에만 둔다. 리프레시 토큰은 Desktop의 OS 보안 저장소에 둔다. `localStorage` 등 JS가 읽을 수 있는 저장소에 토큰을 두지 않는다. 리프레시는 회전하고 DB에는 해시만 저장한다.
+- Website는 API를 호출하지 않으므로 Website 출처를 CORS에 허용하지 않는다. Desktop WebView의 요청 경로(CORS 필요 여부)는 Desktop 구현 때 확정한다. 컨트롤러 인증 주체는 `@AuthenticationPrincipal`로 받는다.
 - API 호환: URL에 버전을 넣지 않는다. 설치형 Desktop의 구버전이 공존하므로 변경은 추가만 허용하고, 호환을 깨야 할 때는 서버의 최소 클라이언트 버전(동적 설정)으로 업데이트를 강제한다.
 - 동적 설정: 관리자가 운영 중 바꾸는 모든 값은 설정 종류마다 타입이 있는 현재값 테이블과 리비전 테이블로 관리한다. key-value 테이블을 쓰지 않는다. 리비전은 불변 이력(변경자, 시각, 선택 사유, 전체 값)이고, 되돌리기는 과거 값을 복사한 새 리비전을 만드는 전진형 롤백이다. 변경은 즉시 적용만 지원하고, 서버 상한으로 다시 검증하며, 낙관적 락으로 동시 수정을 막는다. 사유는 선택이다.
 - 관리자 처리 행위(승인, 반려, 숨김, 제재, 태그 병합)는 리비전이 아니라 감사 로그로 남긴다.
