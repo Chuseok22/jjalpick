@@ -4,7 +4,7 @@
 
 - 약어를 쓰지 않는다(`id`, `url`, `dto` 제외). 이름은 의도를 드러내는 영어로 짓는다.
 - 컴포넌트와 화면(페이지) 이름은 줄이거나 요약하지 않는다. 이름만 보고 그 컴포넌트·화면이 무엇이고 어떤 역할인지 알 수 있어야 하며, 비슷한 입력·버튼 등이 더 생겨도 구분되도록 형태와 역할을 이름에 드러낸다.
-- 클래스는 PascalCase, DTO는 record, 테이블은 snake_case 단수형(`member`, `meme`), 클라이언트 모델 필드는 서버 응답 필드(camelCase)와 맞춘다.
+- 클래스는 PascalCase, DTO는 record, 테이블은 snake_case 단수형(`member` 등), 클라이언트 모델 필드는 서버 응답 필드(camelCase)와 맞춘다.
 - 주석과 Javadoc은 한국어, 식별자는 영어.
 
 ## Code style
@@ -12,7 +12,7 @@
 - BE: 들여쓰기 4칸, 줄 길이 120. 생성자 주입(`@RequiredArgsConstructor`)만 쓰고 필드 주입은 쓰지 않는다. `@Data` 금지. `@Transactional`은 메서드 단위로 붙이고 조회는 `readOnly = true`.
 - 유지보수: 같은 처리를 여러 곳에 반복하지 않는다. 직렬화·시간 변환·에러 변환·인증 주체 해석처럼 횡단 관심사는 중앙 한 곳(설정, 공통 컴포넌트)에서 처리하고, 각 컨트롤러·서비스·DTO에서 개별로 처리하지 않는다. 한 클래스·함수는 하나의 책임만 갖는다.
 - 엔티티: 모든 엔티티는 `BaseEntity`(JPA Auditing 추상 클래스)를 상속한다. `BaseEntity`는 UUID v7 PK, `createdAt`/`updatedAt`, soft delete `deleted`/`deletedAt`을 가진다. `@Table` 명시, enum은 `EnumType.STRING`, 다른 엔티티를 가리키는 id를 UUID 컬럼으로 저장하지 않고 `@ManyToOne(LAZY)` 연관으로 선언한다(도메인 간 참조 포함). `@OneToMany`와 cascade는 금지하고 하위 목록은 리포지토리로 조회한다. 상태 변경은 도메인 메서드로 하며 허용 전이는 상태 enum의 `canTransitionTo`에 둔다(위반 시 `STATE_CONFLICT`).
-- 결제·감사·리비전 기록은 `deleted` 컬럼이 있어도 삭제(soft delete 포함)하지 않는다. 구조가 아니라 코드 규칙으로 지킨다.
+- 감사·리비전 같은 이력 기록은 `deleted` 컬럼이 있어도 삭제(soft delete 포함)하지 않는다. 구조가 아니라 코드 규칙으로 지킨다.
 - soft delete 조회 필터(`deleted = false`)는 리포지토리 메서드에서 명시한다(`@SQLRestriction` 금지). UNIQUE는 활성 행에만 걸리게 partial unique index로 만든다.
 - API 계약: 필드와 query parameter는 camelCase, path variable은 kebab-case, enum 값은 `UPPER_SNAKE_CASE` 문자열, ID는 UUID 문자열이다.
 - 시간: 서버 코드 내부는 `Clock` 주입 + `Instant`만 쓴다(저장은 `timestamptz`). `Instant.now()`, `LocalDateTime.now()` 직접 호출 금지. API로 내려가는 시각은 직렬화 설정 한 곳에서 KST(`Asia/Seoul`) 오프셋이 붙은 ISO-8601 문자열(예: `2026-11-09T14:00:00+09:00`)로 자동 변환한다. 요청으로 받는 시각은 오프셋이 있는 ISO-8601만 받아 `Instant`로 변환한다. 서비스·도메인 코드에서 개별로 변환하지 않는다.
@@ -50,14 +50,14 @@
 ## Admin (Thymeleaf) 불변 규칙
 
 - 모든 상태 변경은 POST/PATCH/DELETE + CSRF로 한다. GET으로 상태를 바꾸지 않는다.
-- 공개 여부 같은 상태는 체크박스로 DB를 직접 바꾸지 않고 항상 전용 서비스(승인, 숨김 등)를 거친다.
+- 상태 값은 체크박스로 DB를 직접 바꾸지 않고 항상 전용 서비스를 거친다.
 - 사용자 입력은 Thymeleaf 이스케이프 기본(`th:text`)을 유지하고 `th:utext`를 쓰지 않는다.
-- 설정 변경은 리비전을 남기고, 승인·반려·제재 등 처리 행위는 감사 로그를 남긴다.
+- 설정 변경은 리비전을 남기고, 관리자의 처리 행위는 감사 로그를 남긴다.
 - `ROLE_ADMIN` 검사는 컨트롤러가 아니라 보안 설정의 경로 단위로 건다.
 
 ## Secrets
 
-- 클라이언트에 넣은 값은 추출할 수 있다고 가정한다. 클라이언트 설정에는 API base URL과 공개 클라이언트 ID만 둔다. Google client secret, R2 키 같은 서버 시크릿은 클라이언트에 넣지 않는다.
+- 클라이언트에 넣은 값은 추출할 수 있다고 가정한다. 클라이언트 설정에는 API base URL과 공개 클라이언트 ID만 둔다. 클라이언트 시크릿, 스토리지 키 같은 서버 시크릿은 클라이언트에 넣지 않는다.
 - 저장소는 public이다. 시크릿은 GitHub Secrets와 서버 환경에만 둔다.
 - 시크릿 파일은 읽을 수 있어도 값을 커밋·로그·PR·대화에 노출하지 않는다. 값이 필요한 작업은 키 이름과 위치만 만들고 값은 사용자가 채운다. 노출되면 즉시 알리고 폐기(rotate)한다.
 - 새 설정 키를 추가하면 `application.yml` 주석 또는 클라이언트 설정 정의와 README 안내를 함께 갱신한다.
