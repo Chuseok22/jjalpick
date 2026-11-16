@@ -19,11 +19,11 @@ public class AuthService {
 
     public AuthTokens login(LoginRequest request) {
         VerifiedIdentity identity = identityVerifier.verify(request.idToken());
-        return authCommandService.login(request, identity);
+        return authCommandService.login(identity);
     }
 
-    public AuthTokens refresh(String refreshToken, String deviceIdentifier) {
-        return authCommandService.refresh(refreshToken, deviceIdentifier);
+    public AuthTokens refresh(String refreshToken) {
+        return authCommandService.refresh(refreshToken);
     }
 
     public void logout(String refreshToken) {

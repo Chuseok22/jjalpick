@@ -49,7 +49,7 @@ class AuthControllerTest {
 
     private String loginBody(String idToken) {
         return """
-            {"idToken":"%s","deviceIdentifier":"device-1","deviceName":"내 PC"}
+            {"idToken":"%s"}
             """.formatted(idToken);
     }
 
@@ -77,23 +77,23 @@ class AuthControllerTest {
     }
 
     @Test
-    void refresh_bodyToken_passesTokenAndDeviceToService() throws Exception {
-        given(authService.refresh("request-refresh-token", "device-1")).willReturn(tokens());
+    void refresh_bodyToken_passesTokenToService() throws Exception {
+        given(authService.refresh("request-refresh-token")).willReturn(tokens());
 
         mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"deviceIdentifier\":\"device-1\",\"refreshToken\":\"request-refresh-token\"}"))
+                .content("{\"refreshToken\":\"request-refresh-token\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN))
             .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
 
-        verify(authService).refresh("request-refresh-token", "device-1");
+        verify(authService).refresh("request-refresh-token");
     }
 
     @Test
     void refresh_cookieOnly_returns400InvalidRequestAndIgnoresCookie() throws Exception {
         mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
                 .cookie(new Cookie("refreshToken", "cookie-refresh-token"))
-                .content("{\"deviceIdentifier\":\"device-1\"}"))
+                .content("{}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
@@ -103,7 +103,7 @@ class AuthControllerTest {
     @Test
     void refresh_blankRefreshToken_returns400InvalidRequest() throws Exception {
         mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"deviceIdentifier\":\"device-1\",\"refreshToken\":\" \"}"))
+                .content("{\"refreshToken\":\" \"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 

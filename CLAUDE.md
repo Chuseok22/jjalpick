@@ -2,7 +2,7 @@
 
 이 파일은 진입점이며, 상세 규칙은 `.claude/rules/*.md`에 있습니다. 작업 시작 전 아래 파일들을 읽고 진행하세요.
 
-- `.claude/rules/00-project-overview.md`: 제품 요약, 스택, 주요 명령, 프로젝트 제약, 변경 정책
+- `.claude/rules/00-project-overview.md`: 범위, 스택, 주요 명령, 프로젝트 제약, 변경 정책
 - `.claude/rules/10-architecture-and-boundaries.md`: 구조, 계층 경계, 폴더 규칙
 - `.claude/rules/20-team-conventions.md`: 네이밍, 코드 스타일, 책임 분리, 시크릿, 리뷰 기준
 - `.claude/rules/30-testing-and-verification.md`: 테스트 정책(전역 80% 규칙을 대체), 검증 명령, 증거

@@ -21,26 +21,26 @@ class AuthServiceTest {
 
     @Test
     void login_verifiesIdentityThenDelegatesToCommandService() {
-        LoginRequest request = new LoginRequest("id-token", "device-1", "내 PC");
+        LoginRequest request = new LoginRequest("id-token");
         VerifiedIdentity identity = new VerifiedIdentity("firebase-uid", "member@example.com", "회원");
         AuthTokens expected = new AuthTokens("access", Instant.EPOCH, "refresh", Instant.EPOCH);
         given(identityVerifier.verify("id-token")).willReturn(identity);
-        given(authCommandService.login(request, identity)).willReturn(expected);
+        given(authCommandService.login(identity)).willReturn(expected);
 
         AuthTokens actual = authService.login(request);
 
         assertThat(actual).isSameAs(expected);
         InOrder inOrder = inOrder(identityVerifier, authCommandService);
         inOrder.verify(identityVerifier).verify("id-token");
-        inOrder.verify(authCommandService).login(request, identity);
+        inOrder.verify(authCommandService).login(identity);
     }
 
     @Test
     void refresh_delegatesToCommandService() {
         AuthTokens expected = new AuthTokens("access", Instant.EPOCH, "refresh", Instant.EPOCH);
-        given(authCommandService.refresh("token", "device-1")).willReturn(expected);
+        given(authCommandService.refresh("token")).willReturn(expected);
 
-        assertThat(authService.refresh("token", "device-1")).isSameAs(expected);
+        assertThat(authService.refresh("token")).isSameAs(expected);
     }
 
     @Test
