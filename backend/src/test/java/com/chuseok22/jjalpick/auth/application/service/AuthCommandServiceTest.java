@@ -140,13 +140,26 @@ class AuthCommandServiceTest {
     }
 
     @Test
-    void refresh_reusedToken_clearsStoredTokenAndThrowsInvalidRefreshToken() {
-        member.startRefreshToken(RefreshTokenHasher.hash("other-token"), NOW.plus(Duration.ofDays(1)));
+    void refresh_mismatchedToken_keepsStoredTokenAndThrowsInvalidRefreshToken() {
+        Instant storedExpiresAt = NOW.plus(Duration.ofDays(1));
+        String storedHash = RefreshTokenHasher.hash("other-token");
+        member.startRefreshToken(storedHash, storedExpiresAt);
         givenParsableRefreshToken();
 
         assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN));
-        assertThat(member.getRefreshTokenHash()).isNull();
-        assertThat(member.getRefreshTokenExpiresAt()).isNull();
+        assertThat(member.getRefreshTokenHash()).isEqualTo(storedHash);
+        assertThat(member.getRefreshTokenExpiresAt()).isEqualTo(storedExpiresAt);
+    }
+
+    @Test
+    void refresh_afterSecondLogin_staleTokenFailsAndNewTokenStaysValid() {
+        Instant expiresAt = NOW.plus(Duration.ofDays(1));
+        member.startRefreshToken(RefreshTokenHasher.hash(CURRENT_REFRESH_TOKEN), expiresAt);
+        member.startRefreshToken(RefreshTokenHasher.hash("second-login-token"), expiresAt);
+        givenParsableRefreshToken();
+
+        assertInvalidRefreshToken(() -> authCommandService.refresh(CURRENT_REFRESH_TOKEN));
+        assertThat(member.matchesRefreshToken(RefreshTokenHasher.hash("second-login-token"))).isTrue();
     }
 
     @Test

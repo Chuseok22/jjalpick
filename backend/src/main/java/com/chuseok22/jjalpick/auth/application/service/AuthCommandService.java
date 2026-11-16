@@ -37,8 +37,8 @@ public class AuthCommandService {
     }
 
     /**
-     * 재사용·만료로 보관 토큰을 지운 뒤 예외를 던져도 삭제가 롤백되지 않도록 CustomException에는 롤백하지 않는다.
-     * 보관 중인 토큰과 다른 토큰이 오면 이미 교체된 토큰의 재사용으로 보고 보관 토큰을 지운다.
+     * 만료로 보관 토큰을 지운 뒤 예외를 던져도 삭제가 롤백되지 않도록 CustomException에는 롤백하지 않는다.
+     * 보관 중인 토큰과 다른 토큰이 오면 보관 토큰은 그대로 두고 예외만 던진다(새 로그인은 이전 로그인만 끊는다).
      */
     @Transactional(noRollbackFor = CustomException.class)
     public AuthTokens refresh(String refreshToken) {
@@ -50,9 +50,11 @@ public class AuthCommandService {
             .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
         member.assertCanLogin();
 
-        if (member.isRefreshTokenExpired(clock.instant())
-            || !member.matchesRefreshToken(RefreshTokenHasher.hash(refreshToken))) {
+        if (member.isRefreshTokenExpired(clock.instant())) {
             member.clearRefreshToken();
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+        if (!member.matchesRefreshToken(RefreshTokenHasher.hash(refreshToken))) {
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
         return issueTokens(member);

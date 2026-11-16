@@ -45,7 +45,7 @@ public interface AuthControllerDocs {
     @Operation(summary = "토큰 갱신",
         description = """
             리프레시 토큰으로 새 액세스 토큰과 새 리프레시 토큰을 발급한다(회전). 이전 리프레시 토큰은 다시 쓸 수 없다.
-            이미 교체된 리프레시 토큰을 다시 보내면 재사용으로 보고 보관 중인 리프레시 토큰을 삭제한다.
+            새로 로그인하면 이전 로그인의 리프레시 토큰은 다음 갱신 때 `INVALID_REFRESH_TOKEN`으로 실패하고, 새 로그인은 유지된다.
             응답 형식은 로그인과 같다.""")
     @SecurityRequirements
     @ApiResponses({
@@ -56,7 +56,7 @@ public interface AuthControllerDocs {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "401",
             description = "`INVALID_REFRESH_TOKEN`: 리프레시 토큰이 위조·만료되었거나 액세스 토큰을 보냈거나, "
-                + "이미 교체된 토큰(재사용)이거나, 보관 중인 리프레시 토큰이 없거나, 탈퇴한 회원의 토큰임. 다시 로그인해야 한다",
+                + "이미 교체되었거나 새 로그인으로 대체된 토큰이거나, 보관 중인 리프레시 토큰이 없거나, 탈퇴한 회원의 토큰임. 다시 로그인해야 한다",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "403",
             description = "`MEMBER_SUSPENDED`: 이용이 정지된 회원",
