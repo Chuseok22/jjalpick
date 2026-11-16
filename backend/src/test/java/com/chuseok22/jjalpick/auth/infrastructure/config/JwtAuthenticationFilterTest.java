@@ -6,8 +6,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.chuseok22.jjalpick.auth.core.port.TokenProvider;
+import com.chuseok22.jjalpick.auth.core.support.CustomUserDetails;
 import com.chuseok22.jjalpick.common.core.exception.CustomException;
 import com.chuseok22.jjalpick.common.core.exception.ErrorCode;
+import com.chuseok22.jjalpick.member.core.entity.Member;
+import com.chuseok22.jjalpick.member.core.repository.MemberRepository;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +33,8 @@ class JwtAuthenticationFilterTest {
     private static final String ACCESS_TOKEN = "access-token";
 
     private TokenProvider tokenProvider;
+    private MemberRepository memberRepository;
+    private Member member;
     private JwtAuthenticationFilter filter;
     private JwtAuthenticationEntryPoint entryPoint;
     private MockHttpServletRequest request;
@@ -38,7 +44,9 @@ class JwtAuthenticationFilterTest {
     @BeforeEach
     void setUp() {
         tokenProvider = mock(TokenProvider.class);
-        filter = new JwtAuthenticationFilter(tokenProvider);
+        memberRepository = mock(MemberRepository.class);
+        member = mock(Member.class);
+        filter = new JwtAuthenticationFilter(tokenProvider, memberRepository);
         entryPoint = new JwtAuthenticationEntryPoint(JsonMapper.builder().build());
         request = new MockHttpServletRequest("GET", "/api/members/me");
         response = new MockHttpServletResponse();
@@ -51,15 +59,17 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void doFilter_validBearerToken_setsAuthenticationWithMemberId() throws Exception {
+    void validToken_activeMember_setsCustomUserDetailsPrincipal() throws Exception {
         request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN);
         given(tokenProvider.parseAccessToken(ACCESS_TOKEN)).willReturn(MEMBER_ID);
+        given(memberRepository.findByIdAndDeletedFalse(MEMBER_ID)).willReturn(Optional.of(member));
 
         filter.doFilter(request, response, filterChain);
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         assertThat(authentication).isNotNull();
-        assertThat(authentication.getPrincipal()).isEqualTo(MEMBER_ID);
+        assertThat(authentication.getPrincipal()).isInstanceOf(CustomUserDetails.class);
+        assertThat(((CustomUserDetails) authentication.getPrincipal()).getMember()).isSameAs(member);
         assertThat(authentication.getAuthorities()).isEmpty();
         assertThat(filterChain.getRequest()).isSameAs(request);
     }
@@ -69,12 +79,27 @@ class JwtAuthenticationFilterTest {
     void doFilter_bearerSchemeCaseInsensitive_setsAuthentication(String scheme) throws Exception {
         request.addHeader(HttpHeaders.AUTHORIZATION, scheme + " " + ACCESS_TOKEN);
         given(tokenProvider.parseAccessToken(ACCESS_TOKEN)).willReturn(MEMBER_ID);
+        given(memberRepository.findByIdAndDeletedFalse(MEMBER_ID)).willReturn(Optional.of(member));
 
         filter.doFilter(request, response, filterChain);
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         assertThat(authentication).isNotNull();
-        assertThat(authentication.getPrincipal()).isEqualTo(MEMBER_ID);
+        assertThat(authentication.getPrincipal()).isInstanceOf(CustomUserDetails.class);
+    }
+
+    @Test
+    void validToken_memberNotFound_marksUnauthenticatedAndLeavesNoAuthentication() throws Exception {
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN);
+        given(tokenProvider.parseAccessToken(ACCESS_TOKEN)).willReturn(MEMBER_ID);
+        given(memberRepository.findByIdAndDeletedFalse(MEMBER_ID)).willReturn(Optional.empty());
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(request.getAttribute(JwtAuthenticationFilter.ERROR_CODE_ATTRIBUTE))
+            .isEqualTo(ErrorCode.UNAUTHENTICATED);
+        assertThat(filterChain.getRequest()).isSameAs(request);
     }
 
     @Test
