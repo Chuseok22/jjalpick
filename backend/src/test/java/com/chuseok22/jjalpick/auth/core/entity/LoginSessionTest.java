@@ -2,7 +2,6 @@ package com.chuseok22.jjalpick.auth.core.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.chuseok22.jjalpick.auth.core.constant.ClientType;
 import com.chuseok22.jjalpick.member.core.entity.Member;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -14,7 +13,7 @@ class LoginSessionTest {
 
     private LoginSession createSession() {
         Member member = Member.create("firebase-uid", "user@example.com", null);
-        return LoginSession.create(member, "device-1", ClientType.DESKTOP, "내 노트북", "hash-1", EXPIRES_AT, NOW);
+        return LoginSession.create(member, "device-1", "내 노트북", "hash-1", EXPIRES_AT, NOW);
     }
 
     @Test
@@ -54,12 +53,11 @@ class LoginSessionTest {
     }
 
     @Test
-    void changeDevice_replacesClientTypeAndDeviceName() {
+    void changeDevice_replacesDeviceName() {
         LoginSession session = createSession();
 
-        session.changeDevice(ClientType.WEBSITE, "크롬");
+        session.changeDevice("크롬");
 
-        assertThat(session.getClientType()).isEqualTo(ClientType.WEBSITE);
         assertThat(session.getDeviceName()).isEqualTo("크롬");
     }
 

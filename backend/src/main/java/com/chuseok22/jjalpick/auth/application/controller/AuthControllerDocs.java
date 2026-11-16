@@ -27,9 +27,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "로그인 성공"),
         @ApiResponse(responseCode = "400",
-            description = "`INVALID_REQUEST`: `idToken`·`deviceIdentifier`·`deviceName`이 비어 있거나 "
-                + "`clientType`이 없음(`errorMessage`에 사유). `MALFORMED_REQUEST_BODY`: 본문이 올바른 JSON이 아니거나 "
-                + "`clientType`이 DESKTOP·WEBSITE가 아님",
+            description = "`INVALID_REQUEST`: `idToken`·`deviceIdentifier`·`deviceName`이 비어 있음(`errorMessage`에 사유). "
+                + "`MALFORMED_REQUEST_BODY`: 본문이 올바른 JSON이 아님",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "401",
             description = "`INVALID_IDENTITY_TOKEN`: Firebase ID 토큰이 위조·만료되었거나 이메일이 없음",

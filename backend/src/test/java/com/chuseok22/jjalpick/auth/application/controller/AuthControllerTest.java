@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.chuseok22.jjalpick.auth.application.dto.request.LoginRequest;
 import com.chuseok22.jjalpick.auth.application.service.AuthService;
 import com.chuseok22.jjalpick.auth.application.service.AuthTokens;
-import com.chuseok22.jjalpick.auth.core.constant.ClientType;
 import com.chuseok22.jjalpick.common.application.exception.GlobalExceptionHandler;
 import jakarta.servlet.http.Cookie;
 import java.time.Duration;
@@ -44,22 +43,22 @@ class AuthControllerTest {
             .build();
     }
 
-    private AuthTokens tokens(ClientType clientType) {
-        return new AuthTokens(ACCESS_TOKEN, ACCESS_EXPIRES_AT, REFRESH_TOKEN, REFRESH_EXPIRES_AT, clientType);
+    private AuthTokens tokens() {
+        return new AuthTokens(ACCESS_TOKEN, ACCESS_EXPIRES_AT, REFRESH_TOKEN, REFRESH_EXPIRES_AT);
     }
 
-    private String loginBody(String idToken, ClientType clientType) {
+    private String loginBody(String idToken) {
         return """
-            {"idToken":"%s","clientType":"%s","deviceIdentifier":"device-1","deviceName":"내 PC"}
-            """.formatted(idToken, clientType.name());
+            {"idToken":"%s","deviceIdentifier":"device-1","deviceName":"내 PC"}
+            """.formatted(idToken);
     }
 
     @Test
-    void login_desktop_returnsRefreshTokenInBodyAndNoCookie() throws Exception {
-        given(authService.login(any(LoginRequest.class))).willReturn(tokens(ClientType.DESKTOP));
+    void login_returnsRefreshTokenInBodyAndNoSetCookie() throws Exception {
+        given(authService.login(any(LoginRequest.class))).willReturn(tokens());
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(loginBody("id-token", ClientType.DESKTOP)))
+                .content(loginBody("id-token")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").value(ACCESS_TOKEN))
             .andExpect(jsonPath("$.accessTokenExpiresAt").exists())
@@ -70,7 +69,7 @@ class AuthControllerTest {
     @Test
     void login_blankIdToken_returns400InvalidRequest() throws Exception {
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(loginBody(" ", ClientType.DESKTOP)))
+                .content(loginBody(" ")))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
 
@@ -79,7 +78,7 @@ class AuthControllerTest {
 
     @Test
     void refresh_bodyToken_passesTokenAndDeviceToService() throws Exception {
-        given(authService.refresh("request-refresh-token", "device-1")).willReturn(tokens(ClientType.DESKTOP));
+        given(authService.refresh("request-refresh-token", "device-1")).willReturn(tokens());
 
         mockMvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"deviceIdentifier\":\"device-1\",\"refreshToken\":\"request-refresh-token\"}"))

@@ -49,14 +49,14 @@ public class AuthCommandService {
             .ifPresentOrElse(
                 session -> {
                     session.rotate(refreshTokenHash, refreshToken.expiresAt(), now);
-                    session.changeDevice(request.clientType(), request.deviceName());
+                    session.changeDevice(request.deviceName());
                 },
                 () -> loginSessionRepository.save(LoginSession.create(
-                    member, request.deviceIdentifier(), request.clientType(), request.deviceName(),
+                    member, request.deviceIdentifier(), request.deviceName(),
                     refreshTokenHash, refreshToken.expiresAt(), now))
             );
         return new AuthTokens(accessToken.token(), accessToken.expiresAt(), refreshToken.token(),
-            refreshToken.expiresAt(), request.clientType());
+            refreshToken.expiresAt());
     }
 
     /**
@@ -88,7 +88,7 @@ public class AuthCommandService {
         IssuedToken newRefreshToken = tokenProvider.issueRefreshToken(memberId);
         session.rotate(RefreshTokenHasher.hash(newRefreshToken.token()), newRefreshToken.expiresAt(), now);
         return new AuthTokens(newAccessToken.token(), newAccessToken.expiresAt(), newRefreshToken.token(),
-            newRefreshToken.expiresAt(), session.getClientType());
+            newRefreshToken.expiresAt());
     }
 
     /**
