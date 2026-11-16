@@ -1,7 +1,39 @@
 # Changelog
 
-**현재 버전:** 0.1.0  
-**마지막 업데이트:** 2026-11-14T08:55:28Z  
+**현재 버전:** 0.2.0  
+**마지막 업데이트:** 2026-11-16T01:09:26Z  
+
+---
+
+## [0.2.0] - 2026-11-16
+
+**✨ 기능**
+- Google_로그인과_JWT_발급_API_추가 — 인증 API 컨트롤러와 리프레시 쿠키 처리 추가
+- Google_로그인과_JWT_발급_API_추가 — JWT 인증 필터와 보안 설정 추가
+- Google_로그인과_JWT_발급_API_추가 — 로그인·갱신·로그아웃 서비스와 요청 DTO 추가
+- Google_로그인과_JWT_발급_API_추가 — Firebase ID 토큰 신원 검증 추가
+- Google_로그인과_JWT_발급_API_추가 — JWT 액세스·리프레시 토큰 발급과 검증 추가
+- Google_로그인과_JWT_발급_API_추가 — 로그인 세션 엔티티와 회원·세션 마이그레이션 추가
+- Google_로그인과_JWT_발급_API_추가 — 회원 엔티티와 상태 추가
+- Google_로그인과_JWT_발급_API_추가 — 인증 에러 코드 7개 추가
+
+**🐛 수정**
+- Google_로그인과_JWT_발급_API_추가 — Bearer 인증 스킴을 대소문자 구분 없이 처리
+- Google_로그인과_JWT_발급_API_추가 — 다른 기기의 현재 토큰으로 대상 기기 세션이 삭제되지 않도록 수정
+
+**📝 문서**
+- 서비스명을 짤픽(JjalPick)으로 확정
+- README 서비스명을 짤픽(JjalPick)으로 변경
+
+**♻️ 리팩토링**
+- Google_로그인과_JWT_발급_API_추가 — 배포 프로젝트 이름과 NAS 경로를 jjalpick으로 변경
+- Google_로그인과_JWT_발급_API_추가 — Website 제목을 짤픽으로 변경
+- Google_로그인과_JWT_발급_API_추가 — Desktop 앱 이름과 식별자를 짤픽·jjalpick으로 변경
+- Google_로그인과_JWT_발급_API_추가 — Gradle 프로젝트 이름과 Docker jar 이름을 jjalpick으로 변경
+- Google_로그인과_JWT_발급_API_추가 — 백엔드 패키지와 애플리케이션 클래스를 jjalpick으로 변경
+
+**🔧 변경사항**
+- 인증 의존성과 설정 키 추가
 
 ---
 
